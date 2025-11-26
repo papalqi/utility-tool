@@ -1,0 +1,162 @@
+{
+  "name": "pc-utility-tool-electron",
+  "version": "1.0.1",
+  "description": "PC Utility Tool - Modern Electron + React + TypeScript rewrite",
+  "main": "dist-electron/main/index.js",
+  "author": {
+    "name": "papalqi",
+    "email": "papalqi@users.noreply.github.com"
+  },
+  "license": "MIT",
+  "private": true,
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/papalqi/pc-utility-tool-electron.git"
+  },
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build && electron-builder",
+    "build:dir": "vite build && electron-builder --dir",
+    "preview": "vite preview",
+    "electron:dev": "vite",
+    "electron:build": "vite build && electron-builder",
+    "electron:build:clean": "npm run clean:build && vite build && electron-builder",
+    "type-check": "tsc --noEmit",
+    "lint": "eslint . --ext .ts,.tsx",
+    "format": "prettier --write \"src/**/*.{ts,tsx,json,css,md}\"",
+    "clean": "rimraf node_modules package-lock.json dist dist-electron release",
+    "clean:build": "rimraf dist dist-electron release",
+    "clean:cache": "npm cache clean --force",
+    "reinstall": "npm run clean && npm install",
+    "rebuild:all": "electron-builder install-app-deps",
+    "postinstall": "electron-builder install-app-deps",
+    "release": "pwsh -ExecutionPolicy Bypass -File ./scripts/release/publish-electron.ps1",
+    "release:version": "pwsh -ExecutionPolicy Bypass -File ./scripts/release/publish-electron.ps1 -Version"
+  },
+  "dependencies": {
+    "@ant-design/icons": "^5.2.6",
+    "@fullcalendar/core": "^6.1.19",
+    "@fullcalendar/daygrid": "^6.1.19",
+    "@fullcalendar/interaction": "^6.1.19",
+    "@fullcalendar/react": "^6.1.19",
+    "@fullcalendar/timegrid": "^6.1.19",
+    "@homebridge/node-pty-prebuilt-multiarch": "^0.13.1",
+    "@iarna/toml": "^2.2.5",
+    "@octokit/rest": "^22.0.1",
+    "@tauri-apps/api": "^1.5.3",
+    "@toml-tools/parser": "^1.0.0",
+    "@xterm/addon-fit": "^0.10.0",
+    "@xterm/xterm": "^5.5.0",
+    "antd": "^5.12.5",
+    "chokidar": "^4.0.3",
+    "dayjs": "^1.11.10",
+    "electron-log": "^5.4.3",
+    "electron-store": "^8.1.0",
+    "electron-updater": "^6.6.2",
+    "framer-motion": "^10.16.16",
+    "glob": "^11.0.3",
+    "gray-matter": "^4.0.3",
+    "iconv-lite": "^0.6.3",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-router-dom": "^6.21.1",
+    "recharts": "^3.5.0",
+    "remark": "^15.0.1",
+    "remark-parse": "^11.0.0",
+    "remark-stringify": "^11.0.0",
+    "simple-git": "^3.30.0",
+    "systeminformation": "^5.27.11",
+    "unified": "^11.0.5",
+    "zustand": "^4.4.7"
+  },
+  "devDependencies": {
+    "@electron/rebuild": "^3.7.2",
+    "@types/chokidar": "^1.7.5",
+    "@types/node": "^20.10.6",
+    "@types/react": "^18.2.46",
+    "@types/react-dom": "^18.2.18",
+    "@typescript-eslint/eslint-plugin": "^6.17.0",
+    "@typescript-eslint/parser": "^6.17.0",
+    "@vitejs/plugin-react": "^4.2.1",
+    "concurrently": "^8.2.2",
+    "electron": "^28.3.3",
+    "electron-builder": "^24.9.1",
+    "eslint": "^8.56.0",
+    "eslint-plugin-react": "^7.33.2",
+    "eslint-plugin-react-hooks": "^4.6.0",
+    "prettier": "^3.1.1",
+    "typescript": "^5.3.3",
+    "vite": "^5.0.10",
+    "vite-plugin-electron": "^0.28.2",
+    "vite-plugin-electron-renderer": "^0.14.5",
+    "wait-on": "^7.2.0"
+  },
+  "build": {
+    "appId": "com.papalqi.pc-utility-tool",
+    "productName": "PC Utility Tool",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist-electron/**/*"
+    ],
+    "extraResources": [
+      {
+        "from": "scripts",
+        "to": "scripts",
+        "filter": ["**/*"]
+      },
+      {
+        "from": "config",
+        "to": "config",
+        "filter": ["**/*"]
+      },
+      {
+        "from": "prompts",
+        "to": "prompts",
+        "filter": ["**/*"]
+      }
+    ],
+    "npmRebuild": false,
+    "buildDependenciesFromSource": false,
+    "nodeGypRebuild": false,
+    "publish": {
+      "provider": "github",
+      "owner": "papalqi",
+      "repo": "pc-utility-tool-electron",
+      "releaseType": "release"
+    },
+    "mac": {
+      "category": "public.app-category.productivity",
+      "target": [
+        "dmg",
+        "zip"
+      ]
+    },
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "publisherName": "papalqi"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "PC Utility Tool"
+    },
+    "linux": {
+      "target": [
+        "AppImage",
+        "deb"
+      ],
+      "category": "Utility"
+    }
+  }
+}

@@ -1,0 +1,301 @@
+/* Reset and base styles */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+body {
+  font-family:
+    -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell',
+    'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+code {
+  font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New', monospace;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--color-bg-secondary, #1f1f1f);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--color-border, #4a4a4a);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-text-secondary, #5a5a5a);
+}
+
+/* Electron window dragging */
+.titlebar {
+  -webkit-app-region: drag;
+  user-select: none;
+}
+
+.titlebar button {
+  -webkit-app-region: no-drag;
+}
+
+/* Ant Design customization */
+.ant-layout {
+  background: var(--color-bg-primary, #121212);
+}
+
+.ant-layout-sider {
+  background: var(--color-bg-secondary, #1e1e1e);
+  border-right: 1px solid var(--color-border, #333);
+}
+
+.ant-menu {
+  background: transparent !important;
+}
+
+.ant-drawer-content {
+  background: var(--color-bg-secondary) !important;
+}
+
+.ant-drawer-header {
+  background: var(--color-bg-secondary) !important;
+  border-bottom: 1px solid var(--color-border) !important;
+}
+
+/* Alert 左侧色条样式 - 只保留视觉增强 */
+.ant-alert {
+  border-left: 3px solid !important;
+  border-top: none !important;
+  border-right: none !important;
+  border-bottom: none !important;
+}
+
+.ant-alert-info {
+  border-left-color: #3b82f6 !important;
+}
+
+.ant-alert-success {
+  border-left-color: #10b981 !important;
+}
+
+.ant-alert-warning {
+  border-left-color: #f59e0b !important;
+}
+
+.ant-alert-error {
+  border-left-color: #ef4444 !important;
+}
+
+/* Global Backgrounds */
+[data-theme='dark'] body {
+  background: linear-gradient(135deg, #1a1a1a 0%, #2d3436 100%);
+  background-attachment: fixed;
+}
+
+[data-theme='light'] body {
+  background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+  background-attachment: fixed;
+}
+
+/* Modern Layout Utilities */
+.app-layout {
+  height: 100vh;
+  background: transparent !important; /* Let body gradient show through */
+  transition: all 0.3s ease;
+}
+
+.main-content-layout {
+  padding: 0 16px 16px 16px; /* 左、右、底边距 */
+  gap: 16px; /* Sidebar 和 Content 之间的间距 */
+  background: transparent !important;
+}
+
+.floating-sidebar {
+  background: var(--glass-bg) !important;
+  backdrop-filter: var(--glass-backdrop);
+  -webkit-backdrop-filter: var(--glass-backdrop);
+  border: 1px solid var(--glass-border);
+  border-radius: 16px;
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.1);
+  height: 100%;
+  overflow: hidden;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.floating-content {
+  background: var(--glass-bg) !important; /* Use glass effect */
+  backdrop-filter: var(--glass-backdrop);
+  -webkit-backdrop-filter: var(--glass-backdrop);
+  border: 1px solid var(--glass-border);
+  border-radius: 16px;
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.1);
+  height: 100%;
+  overflow: hidden;
+  position: relative;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* 优化 Sidebar 内部菜单 */
+.floating-sidebar .ant-menu-item {
+  margin: 4px 8px !important;
+  width: calc(100% - 16px) !important;
+  border-radius: 8px;
+}
+
+.floating-sidebar .ant-menu-item-selected {
+  background: var(--color-primary) !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+/* 滚动条优化 - 更加隐形 */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* Modern Glassmorphism Utilities */
+.glass-panel {
+  background: var(--glass-bg);
+  backdrop-filter: var(--glass-backdrop);
+  -webkit-backdrop-filter: var(--glass-backdrop);
+  border: 1px solid var(--glass-border);
+}
+
+.modern-card {
+  background: var(--color-bg-secondary);
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  box-shadow:
+    0 4px 6px -1px rgba(0, 0, 0, 0.1),
+    0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  transition: all 0.3s ease;
+}
+
+.modern-card:hover {
+  box-shadow:
+    0 10px 15px -3px rgba(0, 0, 0, 0.1),
+    0 4px 6px -2px rgba(0, 0, 0, 0.05);
+  transform: translateY(-2px);
+}
+
+/* Full height tabs utility */
+.full-height-tabs {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.full-height-tabs .ant-tabs-content,
+.full-height-tabs .ant-tabs-tabpane {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+/* 禁用 Widget 卡片头部的所有动画，避免按钮渲染时的抖动 */
+.ant-card-head,
+.ant-card-head *,
+.ant-card-extra,
+.ant-card-extra * {
+  transition: none !important;
+  animation: none !important;
+}
+
+/* Animations */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.fade-in {
+  animation: fadeIn 0.3s ease-out;
+}
+
+/* FullCalendar 主题样式 - 使用 CSS 变量 */
+.fc {
+  --fc-bg-event-opacity: 1;
+  --fc-border-color: var(--calendar-border);
+  --fc-today-bg-color: var(--calendar-today-bg);
+}
+
+/* 星期标题区域背景 */
+.fc .fc-col-header,
+.fc .fc-col-header-cell {
+  background-color: var(--calendar-header-bg) !important;
+}
+
+/* 星期标题文字颜色 */
+.fc .fc-col-header-cell-cushion {
+  color: var(--calendar-header-text) !important;
+  font-weight: 600;
+  text-decoration: none !important;
+}
+
+/* 日期数字颜色 */
+.fc .fc-daygrid-day-number,
+.fc .fc-timegrid-slot-label-cushion,
+.fc .fc-daygrid-day-top {
+  color: var(--calendar-day-text) !important;
+}
+
+/* 今天的日期数字 - 更醒目 */
+.fc .fc-day-today .fc-daygrid-day-number {
+  color: var(--calendar-today-text) !important;
+  font-weight: 700;
+}
+
+/* 表格边框 */
+.fc .fc-scrollgrid {
+  border-color: var(--calendar-border) !important;
+}
+
+.fc td,
+.fc th {
+  border-color: var(--calendar-border) !important;
+}
+
+/* 今天单元格背景 */
+.fc .fc-day-today {
+  background-color: var(--calendar-today-bg) !important;
+}
+
+/* 周视图时间标签 */
+.fc .fc-timegrid-axis-cushion,
+.fc .fc-timegrid-slot-label {
+  color: var(--calendar-time-text) !important;
+}
+
+/* 更多事件链接 */
+.fc .fc-daygrid-more-link {
+  color: var(--calendar-today-text) !important;
+}
+
+/* hover 效果 */
+.fc .fc-daygrid-day:hover {
+  background-color: var(--calendar-hover-bg);
+}

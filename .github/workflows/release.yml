@@ -1,0 +1,117 @@
+name: Release Build
+
+on:
+  push:
+    tags:
+      - 'v*' # 当推送 v* 标签时触发（例如 v1.0.0, v1.1.0）
+
+permissions:
+  contents: write
+
+jobs:
+  # 第一阶段：构建各平台
+  build:
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      fail-fast: false  # 一个平台失败不影响其他平台
+      matrix:
+        os: [windows-latest, macos-latest, ubuntu-latest]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+
+      # Windows: 设置 Visual Studio Build Tools
+      - name: Setup MSVC (Windows)
+        if: runner.os == 'Windows'
+        uses: ilammy/msvc-dev-cmd@v1
+
+      # macOS: 安装 Python (node-gyp 需要)
+      - name: Setup Python (macOS)
+        if: runner.os == 'macOS'
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      # Linux: 安装构建依赖
+      - name: Install build dependencies (Linux)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y build-essential python3
+
+      # 仿照 install.ps1: 使用 --ignore-scripts 跳过原生模块编译
+      - name: Install dependencies (skip native scripts)
+        run: npm install --ignore-scripts
+        env:
+          npm_config_ignore_scripts: true
+
+      # 重建原生模块 (允许失败，node-pty 可能没有预编译)
+      - name: Rebuild native modules
+        run: npm rebuild
+        continue-on-error: true
+        env:
+          npm_config_msvs_version: '2022'
+
+      # 构建应用 (不发布，只构建)
+      - name: Build application
+        run: npx vite build && npx electron-builder --publish never
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          npm_config_msvs_version: '2022'
+          # macOS: 跳过代码签名 (没有证书)
+          CSC_IDENTITY_AUTO_DISCOVERY: false
+
+      # 上传构建产物
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-${{ matrix.os }}
+          path: |
+            release/*.exe
+            release/*.dmg
+            release/*.AppImage
+            release/*.deb
+            release/*.zip
+            release/*.yml
+            release/*.blockmap
+          retention-days: 5
+          if-no-files-found: error
+
+  # 第二阶段：统一发布 (等待所有构建完成)
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: release
+          merge-multiple: true
+
+      - name: List release files
+        run: ls -la release/
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            release/*.exe
+            release/*.dmg
+            release/*.AppImage
+            release/*.deb
+            release/*.zip
+            release/*.yml
+            release/*.blockmap
+          draft: false
+          prerelease: false
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

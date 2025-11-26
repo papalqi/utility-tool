@@ -1,0 +1,91 @@
+[ui]
+visible_tabs = [ "settings", "ai-cli", "generic-ai", "ai-chat", "todo", "pomodoro", "calendar", "scripts", "environment", "terminal", "renderdoc", "adb", "projects", "github", "web-archive" ]
+
+scripts = [ ]
+quick_access = [ ]
+ai_apis = { }
+
+[[ai_cli_tools]]
+command = "claude"
+package = "@anthropic-ai/claude-code"
+label = "Claude Code"
+
+[[ai_cli_tools]]
+command = "codex"
+package = "@openai/codex"
+label = "Codex"
+
+[icons]
+default_folder = "assets/icons"
+default_app_icon = "🚀"
+default_url_icon = "🌐"
+
+[theme]
+current = "dark"
+auto_switch = false
+dark_mode_start_time = "18:00"
+light_mode_start_time = "08:00"
+
+[pomodoro]
+work_duration = 25
+short_break_duration = 5
+long_break_duration = 15
+long_break_interval = 4
+
+[markdown_log]
+file_path = ""
+
+[adb]
+adb_path = "adb"
+refresh_interval = 0
+default_download_dir = ""
+
+[project_manager]
+projects = [ ]
+auto_sync = false
+default_build_config = "Development"
+
+[attachment]
+storage_mode = "picgo"
+use_picgo_server = true
+auto_upload_threshold = 5_242_880
+markdown_format = "obsidian"
+local_path = ""
+picgo_mode = "server"
+picgo_server_url = "http://127.0.0.1:36677"
+picgo_path = "picgo"
+
+[file_transfer]
+server_url = "http://localhost:3000/api"
+
+[todo.ai_parser]
+selected_provider_id = "清风阁API"
+max_clipboard_length = 10_000
+prompt_template_path = "prompts/ai_todo_parser.md"
+
+[calendar.categories.default]
+name = "默认"
+color = "#546E7A"
+
+# Example computer-specific Obsidian configurations
+# Copy and modify for your own hostname
+# 
+# [computer.YOUR_HOSTNAME.obsidian]
+# enabled = true
+# vault_path = "/path/to/your/obsidian/vault"
+# secrets_file = "secrets.md"
+
+[global.obsidian.content_files]
+mode = "auto"
+template = "{year}-W{week}.md"
+manual_file = ""
+
+[global.obsidian.todo]
+auto_save = false
+save_interval = 200
+enabled = false
+note_folder = "TodoNotes"
+categories = [ "工作", "学习", "生活" ]
+
+[web_archive]
+items = []
