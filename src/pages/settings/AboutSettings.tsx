@@ -105,7 +105,7 @@ export const AboutSettings: React.FC = () => {
         <Space direction="vertical" size="middle" style={{ width: '100%' }}>
           <div>
             <Text strong>开发者：</Text>
-            <Text> Your Name</Text>
+            <Text> papalqi</Text>
           </div>
 
           <div>
@@ -116,7 +116,7 @@ export const AboutSettings: React.FC = () => {
           <div>
             <Text strong>项目地址：</Text>
             <br />
-            <Link href="https://github.com/yourusername/pc-utility-tool-electron" target="_blank">
+            <Link href="https://github.com/papalqi/utility-tool" target="_blank">
               <Space>
                 <GithubOutlined />
                 <span>GitHub Repository</span>

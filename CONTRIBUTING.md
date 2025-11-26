@@ -8,7 +8,7 @@
 
 如果你发现了 bug 或有功能建议：
 
-1. 在 [Issues](https://github.com/papalqi/pc-utility-tool-electron/issues) 中搜索是否已有相关问题
+1. 在 [Issues](https://github.com/papalqi/utility-tool/issues) 中搜索是否已有相关问题
 2. 如果没有，创建一个新的 Issue，并提供：
    - 清晰的标题和描述
    - 复现步骤（如果是 bug）
@@ -23,8 +23,8 @@
 
 2. **克隆到本地**
    ```bash
-   git clone https://github.com/你的用户名/pc-utility-tool-electron.git
-   cd pc-utility-tool-electron
+   git clone https://github.com/你的用户名/utility-tool.git
+   cd utility-tool
    ```
 
 3. **安装依赖**
@@ -171,7 +171,7 @@ pwsh -ExecutionPolicy Bypass -File .\scripts\tools\env-diagnostics.ps1
 
 - 查看 [README.md](./README.md) 了解项目基本信息
 - 查看 [docs/](./docs/) 目录下的文档
-- 在 [Issues](https://github.com/papalqi/pc-utility-tool-electron/issues) 中提问
+- 在 [Issues](https://github.com/papalqi/utility-tool/issues) 中提问
 
 ## 📜 许可证
 

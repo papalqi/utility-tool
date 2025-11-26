@@ -62,7 +62,9 @@ export default defineConfig({
       '@': resolve(__dirname, 'src'),
       '@main': resolve(__dirname, 'electron/main'),
       '@renderer': resolve(__dirname, 'src'),
-      '@shared': resolve(__dirname, 'src/shared')
+      '@shared': resolve(__dirname, 'src/shared'),
+      'rc-util/es/Dom/findDOMNode': resolve(__dirname, 'src/shims/strictFindDOMNode.ts'),
+      'rc-util/lib/Dom/findDOMNode': resolve(__dirname, 'src/shims/strictFindDOMNode.ts')
     }
   },
   build: {

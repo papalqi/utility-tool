@@ -14,7 +14,7 @@ import {
   Empty,
   Badge,
 } from 'antd'
-import { LinkOutlined, FileAddOutlined, RightOutlined, DownOutlined } from '@ant-design/icons'
+import { LinkOutlined, FileAddOutlined, RightOutlined, DownOutlined, DragOutlined } from '@ant-design/icons'
 import type { TabsProps } from 'antd'
 import { AttachmentThumbnail } from '@/components/AttachmentThumbnail'
 import type { TodoItem } from '@/shared/types'
@@ -22,6 +22,25 @@ import { extractObsidianLinkTarget, stripObsidianLinks } from '../constants'
 import { TodoActionBar } from './TodoActionBar'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useTheme } from '@/contexts/ThemeContext'
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+  DragStartEvent,
+  DragOverlay,
+  DragOverEvent,
+} from '@dnd-kit/core'
+import {
+  SortableContext,
+  sortableKeyboardCoordinates,
+  verticalListSortingStrategy,
+  useSortable,
+} from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
 
 type TreeTodo = TodoItem & { children?: TreeTodo[]; level?: number }
 
@@ -48,6 +67,7 @@ interface TodoListPanelProps {
   onCategoryChange: (id: string, category: string) => void
   onPriorityChange: (id: string, priority: 'low' | 'medium' | 'high') => void
   onTodoNoteAction: (todo: TodoItem) => void
+  onReorderTodos?: (itemId: string, newParentId: string) => void
 }
 
 const buildTree = (items: TodoItem[], doneFlag: boolean): TreeTodo[] => {
@@ -61,29 +81,67 @@ const buildTree = (items: TodoItem[], doneFlag: boolean): TreeTodo[] => {
     return false
   }
 
-  // Filter items based on done status - ensure strict comparison
-  const eligible = items.filter((it) => {
+  // Strategy: 
+  // 1. For "active" tab (doneFlag=false): Show incomplete tasks and their children (regardless of children's status)
+  // 2. For "completed" tab (doneFlag=true): Show completed tasks and their children (regardless of children's status)
+  // This preserves the complete hierarchy for each parent task
+
+  // Cache items for parent lookup
+  const itemMap = new Map<string, TodoItem>(items.map((it) => [it.id, it]))
+
+  // First, get all items that match the done status
+  const matchingRootItems = items.filter((it) => {
     const itemDone = isDone(it.done)
-    const matches = itemDone === doneFlag
-    return matches
+    if (itemDone !== doneFlag) {
+      return false
+    }
+
+    if (!it.parentId) {
+      return true
+    }
+
+    const parent = itemMap.get(it.parentId)
+    if (!parent) {
+      return true
+    }
+
+    // Only treat as non-root when parent is in the same tab (same doneFlag)
+    return isDone(parent.done) !== doneFlag
   })
 
-  const byId = new Map<string, TreeTodo>(eligible.map((it) => [it.id, { ...it }]))
-  const roots: TreeTodo[] = []
-  for (const it of byId.values()) {
-    if (it.parentId && byId.has(it.parentId)) {
-      const p = byId.get(it.parentId)!
-      p.children = p.children || []
-      p.children.push(it)
-    } else {
-      roots.push(it)
-    }
+  // Recursive function to collect all children of a given item
+  const collectChildren = (itemId: string): TreeTodo[] => {
+    const children = items
+      .filter((it) => it.parentId === itemId)
+      .map((child) => {
+        const treeNode: TreeTodo = { ...child }
+        const grandChildren = collectChildren(child.id)
+        if (grandChildren.length > 0) {
+          treeNode.children = grandChildren
+        }
+        return treeNode
+      })
+    return children
   }
+
+  // Build the tree starting from matching root items
+  const roots: TreeTodo[] = matchingRootItems.map((rootItem) => {
+    const treeNode: TreeTodo = { ...rootItem }
+    const children = collectChildren(rootItem.id)
+    if (children.length > 0) {
+      treeNode.children = children
+    }
+    return treeNode
+  })
+
+  // Sort recursively
   const sortRec = (arr: TreeTodo[]) => {
     arr.sort((a, b) => a.createdAt - b.createdAt)
     for (const n of arr) if (n.children) sortRec(n.children)
   }
   sortRec(roots)
+
+  // Assign levels
   const assignLevel = (arr: TreeTodo[], level: number) => {
     for (const n of arr) {
       n.level = level
@@ -91,6 +149,7 @@ const buildTree = (items: TodoItem[], doneFlag: boolean): TreeTodo[] => {
     }
   }
   assignLevel(roots, 0)
+
   return roots
 }
 
@@ -110,6 +169,44 @@ interface ThemeColors {
   info: string
 }
 
+// 可拖拽的任务卡片包装组件
+const SortableTodoItemCard: React.FC<{
+  item: TreeTodo
+  selected: boolean
+  expanded: boolean
+  onToggleExpand: () => void
+  onSelect: () => void
+  onToggle: () => void
+  onCategoryChange: (val: string) => void
+  onPriorityChange: (val: 'low' | 'medium' | 'high') => void
+  onNoteAction: () => void
+  creatingNote: boolean
+  categories: string[]
+  colors: ThemeColors
+  onShowEdit: () => void
+}> = (props) => {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: props.item.id })
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  }
+
+  return (
+    <div ref={setNodeRef} style={style}>
+      <TodoItemCard {...props} dragHandleProps={{ ...attributes, ...listeners }} />
+    </div>
+  )
+}
+
 // 卡片式任务组件
 const TodoItemCard: React.FC<{
   item: TreeTodo
@@ -125,6 +222,7 @@ const TodoItemCard: React.FC<{
   categories: string[]
   colors: ThemeColors
   onShowEdit: () => void
+  dragHandleProps?: any
 }> = ({
   item,
   selected,
@@ -139,6 +237,7 @@ const TodoItemCard: React.FC<{
   categories,
   colors,
   onShowEdit,
+  dragHandleProps,
 }) => {
   const displayText = stripObsidianLinks(item.text)
   const linkInfo = extractObsidianLinkTarget(item.text)
@@ -190,6 +289,24 @@ const TodoItemCard: React.FC<{
           background: priorityColor,
         }}
       />
+
+      {/* 拖拽手柄 */}
+      {dragHandleProps && (
+        <div
+          {...dragHandleProps}
+          style={{
+            width: 20,
+            display: 'flex',
+            justifyContent: 'center',
+            cursor: 'grab',
+            color: colors.textSecondary,
+            opacity: 0.6,
+          }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <DragOutlined style={{ fontSize: 14 }} />
+        </div>
+      )}
 
       {/* 展开/折叠按钮 */}
       <div
@@ -318,46 +435,66 @@ const TodoListRenderer: React.FC<{
   colors: ThemeColors
   expandedIds: Set<string>
   onToggleExpand: (id: string) => void
-}> = ({ items, props, colors, expandedIds, onToggleExpand }) => {
+  overItemId: string | null
+}> = ({ items, props, colors, expandedIds, onToggleExpand, overItemId }) => {
+  // 收集所有可排序的ID（用于DnD）
+  const sortableIds = items.map((item) => item.id)
+
   return (
-    <>
-      {items.map((item) => (
-        <React.Fragment key={item.id}>
-          <TodoItemCard
-            item={item}
-            selected={props.selectedTodo?.id === item.id}
-            expanded={expandedIds.has(item.id)}
-            onToggleExpand={() => onToggleExpand(item.id)}
-            onSelect={() => props.onSelectTodo(item)}
-            onToggle={() => props.onToggleComplete(item)}
-            onCategoryChange={(val) => props.onCategoryChange(item.id, val)}
-            onPriorityChange={(val) => props.onPriorityChange(item.id, val)}
-            onNoteAction={() => props.onTodoNoteAction(item)}
-            creatingNote={props.creatingNoteIds.has(item.id)}
-            categories={props.categories}
-            colors={colors}
-            onShowEdit={props.onShowEdit}
-          />
-          <AnimatePresence initial={false}>
-            {item.children && expandedIds.has(item.id) && (
-              <motion.div
-                initial={false}
-                animate={{ opacity: 1, height: 'auto' }}
-                exit={{ opacity: 0, height: 0 }}
-              >
-                <TodoListRenderer
-                  items={item.children}
-                  props={props}
-                  colors={colors}
-                  expandedIds={expandedIds}
-                  onToggleExpand={onToggleExpand}
-                />
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </React.Fragment>
-      ))}
-    </>
+    <SortableContext items={sortableIds} strategy={verticalListSortingStrategy}>
+      {items.map((item) => {
+        const isDropTarget = overItemId === item.id
+        
+        return (
+          <React.Fragment key={item.id}>
+            <div
+              style={{
+                position: 'relative',
+                border: isDropTarget ? `2px dashed ${colors.primary}` : 'none',
+                borderRadius: isDropTarget ? 12 : 0,
+                padding: isDropTarget ? 4 : 0,
+                backgroundColor: isDropTarget ? `${colors.primary}15` : 'transparent',
+                transition: 'all 0.2s ease',
+              }}
+            >
+              <SortableTodoItemCard
+                item={item}
+                selected={props.selectedTodo?.id === item.id}
+                expanded={expandedIds.has(item.id)}
+                onToggleExpand={() => onToggleExpand(item.id)}
+                onSelect={() => props.onSelectTodo(item)}
+                onToggle={() => props.onToggleComplete(item)}
+                onCategoryChange={(val) => props.onCategoryChange(item.id, val)}
+                onPriorityChange={(val) => props.onPriorityChange(item.id, val)}
+                onNoteAction={() => props.onTodoNoteAction(item)}
+                creatingNote={props.creatingNoteIds.has(item.id)}
+                categories={props.categories}
+                colors={colors}
+                onShowEdit={props.onShowEdit}
+              />
+            </div>
+            <AnimatePresence initial={false}>
+              {item.children && expandedIds.has(item.id) && (
+                <motion.div
+                  initial={false}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  exit={{ opacity: 0, height: 0 }}
+                >
+                  <TodoListRenderer
+                    items={item.children}
+                    props={props}
+                    colors={colors}
+                    expandedIds={expandedIds}
+                    onToggleExpand={onToggleExpand}
+                    overItemId={overItemId}
+                  />
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </React.Fragment>
+        )
+      })}
+    </SortableContext>
   )
 }
 
@@ -372,13 +509,28 @@ export const TodoListPanel: React.FC<TodoListPanelProps> = (props) => {
     onCategoryFilterChange,
     onQuickAddCategoryChange,
     onQuickAddParsed,
+    onReorderTodos,
   } = props
 
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set())
   const [activeTab, setActiveTab] = useState('active')
+  const [activeDragId, setActiveDragId] = useState<string | null>(null)
+  const [overItemId, setOverItemId] = useState<string | null>(null)
 
   const activeItems = useMemo(() => buildTree(filteredItems, false), [filteredItems])
   const completedItems = useMemo(() => buildTree(filteredItems, true), [filteredItems])
+
+  // DnD 传感器配置
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 8, // 拖动8px后才激活，避免误触
+      },
+    }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  )
 
   const toggleExpand = useCallback((id: string) => {
     setExpandedIds((prev) => {
@@ -389,23 +541,156 @@ export const TodoListPanel: React.FC<TodoListPanelProps> = (props) => {
     })
   }, [])
 
+  // 处理拖拽开始
+  const handleDragStart = useCallback((event: DragStartEvent) => {
+    setActiveDragId(event.active.id as string)
+    setOverItemId(null)
+  }, [])
+
+  // 处理拖拽覆盖（hover 状态）
+  const handleDragOver = useCallback(
+    (event: DragOverEvent) => {
+      const { active, over } = event
+
+      if (!over || active.id === over.id) {
+        setOverItemId(null)
+        return
+      }
+
+      // 找到被拖拽的任务和目标任务
+      const activeItem = filteredItems.find((item) => item.id === active.id)
+      const overItem = filteredItems.find((item) => item.id === over.id)
+
+      if (!activeItem || !overItem) {
+        setOverItemId(null)
+        return
+      }
+
+      // 防止将父任务拖到自己的子任务下（会造成循环引用）
+      const isDescendant = (parentId: string, childId: string): boolean => {
+        let current = filteredItems.find((item) => item.id === childId)
+        while (current?.parentId) {
+          if (current.parentId === parentId) {
+            return true
+          }
+          current = filteredItems.find((item) => item.id === current!.parentId)
+        }
+        return false
+      }
+
+      if (isDescendant(activeItem.id, overItem.id)) {
+        setOverItemId(null)
+        return // 不允许拖拽
+      }
+
+      // 设置当前 hover 的目标
+      setOverItemId(over.id as string)
+    },
+    [filteredItems]
+  )
+
+  // 处理拖拽结束
+  const handleDragEnd = useCallback(
+    (event: DragEndEvent) => {
+      const { active, over } = event
+      setActiveDragId(null)
+      setOverItemId(null)
+
+      if (!over || active.id === over.id || !onReorderTodos) {
+        return
+      }
+
+      const activeItem = filteredItems.find((item) => item.id === active.id)
+      const overItem = filteredItems.find((item) => item.id === over.id)
+
+      if (!activeItem || !overItem) {
+        return
+      }
+
+      // 防止循环引用
+      const isDescendant = (parentId: string, childId: string): boolean => {
+        let current = filteredItems.find((item) => item.id === childId)
+        while (current?.parentId) {
+          if (current.parentId === parentId) {
+            return true
+          }
+          current = filteredItems.find((item) => item.id === current!.parentId)
+        }
+        return false
+      }
+
+      if (isDescendant(activeItem.id, overItem.id)) {
+        return
+      }
+
+      onReorderTodos(activeItem.id, overItem.id)
+    },
+    [filteredItems, onReorderTodos]
+  )
+
   // 渲染当前 Tab 的内容
   const renderTabContent = (items: TreeTodo[], emptyText: string) => {
     if (items.length === 0) {
       return <Empty description={emptyText} image={Empty.PRESENTED_IMAGE_SIMPLE} />
     }
     return (
-      <div style={{ height: '100%', overflow: 'auto', padding: '4px 12px 4px 4px' }}>
-        <AnimatePresence initial={false} mode="sync">
-          <TodoListRenderer
-            items={items}
-            props={props}
-            colors={colors}
-            expandedIds={expandedIds}
-            onToggleExpand={toggleExpand}
-          />
-        </AnimatePresence>
-      </div>
+      <DndContext
+        sensors={sensors}
+        collisionDetection={closestCenter}
+        onDragStart={handleDragStart}
+        onDragEnd={handleDragEnd}
+        onDragOver={handleDragOver}
+      >
+        <div style={{ height: '100%', overflow: 'auto', padding: '4px 12px 4px 4px' }}>
+          <AnimatePresence initial={false} mode="sync">
+            <TodoListRenderer
+              items={items}
+              props={props}
+              colors={colors}
+              expandedIds={expandedIds}
+              onToggleExpand={toggleExpand}
+              overItemId={overItemId}
+            />
+          </AnimatePresence>
+        </div>
+        <DragOverlay>
+          {activeDragId ? (
+            <div
+              style={{
+                padding: '12px 16px',
+                background: colors.bgSecondary,
+                border: `2px solid ${colors.primary}`,
+                borderRadius: 12,
+                opacity: 0.95,
+                boxShadow: '0 8px 24px rgba(0,0,0,0.2)',
+                minWidth: 200,
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <DragOutlined style={{ color: colors.primary, fontSize: 16 }} />
+                <span style={{ fontWeight: 500, color: colors.textPrimary }}>
+                  {stripObsidianLinks(
+                    filteredItems.find((item) => item.id === activeDragId)?.text || '拖动中...'
+                  )}
+                </span>
+              </div>
+              {overItemId && (
+                <div
+                  style={{
+                    marginTop: 8,
+                    paddingTop: 8,
+                    borderTop: `1px solid ${colors.borderPrimary}`,
+                    fontSize: 12,
+                    color: colors.textSecondary,
+                  }}
+                >
+                  → 将成为子任务
+                </div>
+              )}
+            </div>
+          ) : null}
+        </DragOverlay>
+      </DndContext>
     )
   }
 
@@ -474,7 +759,7 @@ export const TodoListPanel: React.FC<TodoListPanelProps> = (props) => {
           activeKey={activeTab}
           onChange={setActiveTab}
           items={tabItems}
-          destroyInactiveTabPane={false}
+          destroyInactiveTabPane={true}
           className="full-height-tabs"
           style={{ height: '100%' }}
           animated={false}

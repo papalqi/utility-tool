@@ -49,7 +49,7 @@ export class AppUpdater {
       // autoUpdater.setFeedURL({
       //   provider: 'github',
       //   owner: 'papalqi',
-      //   repo: 'pc-utility-tool-electron',
+      //   repo: 'utility-tool',
       // })
     }
 

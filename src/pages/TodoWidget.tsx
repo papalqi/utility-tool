@@ -482,14 +482,46 @@ export const TodoWidget: React.FC = () => {
 
   /**
    * Toggle completion
+   * When a parent is completed/incompleted, propagate the same state to all descendants
    */
-  const handleToggleComplete = (record: TodoItem) => {
-    applyTodoUpdate((items) =>
-      items.map((item) =>
-        item.id === record.id ? { ...item, done: !item.done, updatedAt: Date.now() } : item
-      )
-    )
-  }
+  const handleToggleComplete = useCallback(
+    (record: TodoItem) => {
+      applyTodoUpdate((items) => {
+        const nextDone = !record.done
+        const childMap = items.reduce<Map<string, string[]>>((map, item) => {
+          if (item.parentId) {
+            if (!map.has(item.parentId)) {
+              map.set(item.parentId, [])
+            }
+            map.get(item.parentId)!.push(item.id)
+          }
+          return map
+        }, new Map())
+
+        const descendants = new Set<string>()
+        const collectDescendants = (id: string) => {
+          const children = childMap.get(id)
+          if (!children) return
+          for (const childId of children) {
+            if (!descendants.has(childId)) {
+              descendants.add(childId)
+              collectDescendants(childId)
+            }
+          }
+        }
+        collectDescendants(record.id)
+
+        const updatedAt = Date.now()
+        return items.map((item) => {
+          if (item.id === record.id || descendants.has(item.id)) {
+            return { ...item, done: nextDone, updatedAt }
+          }
+          return item
+        })
+      })
+    },
+    [applyTodoUpdate]
+  )
 
   const handleCategoryChange = useCallback(
     (id: string, category: string) => {
@@ -505,6 +537,28 @@ export const TodoWidget: React.FC = () => {
       applyTodoUpdate((items) =>
         items.map((item) => (item.id === id ? { ...item, priority, updatedAt: Date.now() } : item))
       )
+    },
+    [applyTodoUpdate]
+  )
+
+  const handleReorderTodos = useCallback(
+    (itemId: string, newParentId: string | null) => {
+      applyTodoUpdate((items) => {
+        const normalizedParentId = newParentId ?? undefined
+        const updatedAt = Date.now()
+        let changed = false
+        const nextItems = items.map((item) => {
+          if (item.id !== itemId) return item
+          if (item.parentId === normalizedParentId) return item
+          changed = true
+          return {
+            ...item,
+            parentId: normalizedParentId,
+            updatedAt,
+          }
+        })
+        return changed ? nextItems : items
+      })
     },
     [applyTodoUpdate]
   )
@@ -1269,6 +1323,7 @@ export const TodoWidget: React.FC = () => {
                 onCategoryChange={handleCategoryChange}
                 onPriorityChange={handlePriorityChange}
                 onTodoNoteAction={handleTodoNoteAction}
+                onReorderTodos={handleReorderTodos}
               />
             </Col>
 

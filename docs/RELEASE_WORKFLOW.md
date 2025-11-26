@@ -103,12 +103,12 @@ GitHub Actions 会自动：
 
 ### GitHub Actions 页面
 ```
-https://github.com/papalqi/pc-utility-tool-electron/actions
+https://github.com/papalqi/utility-tool/actions
 ```
 
 ### 构建完成后
 ```
-https://github.com/papalqi/pc-utility-tool-electron/releases
+https://github.com/papalqi/utility-tool/releases
 ```
 
 ---
@@ -149,7 +149,7 @@ https://github.com/papalqi/pc-utility-tool-electron/releases
 {
   "repository": {
     "type": "git",
-    "url": "https://github.com/papalqi/pc-utility-tool-electron.git"
+    "url": "https://github.com/papalqi/utility-tool.git"
   }
 }
 ```

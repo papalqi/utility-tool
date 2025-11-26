@@ -78,12 +78,12 @@ pwsh -ExecutionPolicy Bypass -File .\scripts\release\publish-electron.ps1 -Versi
 
 **GitHub Actions 页面：**
 ```
-https://github.com/papalqi/pc-utility-tool-electron/actions
+https://github.com/papalqi/utility-tool/actions
 ```
 
 **发布页面：**
 ```
-https://github.com/papalqi/pc-utility-tool-electron/releases
+https://github.com/papalqi/utility-tool/releases
 ```
 
 ### 5. 验证发布

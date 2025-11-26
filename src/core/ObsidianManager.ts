@@ -1568,12 +1568,29 @@ class ObsidianManager {
     lines.push(`*最后更新: ${timestamp}*`)
     lines.push('')
 
-    // 按分类和优先级组织待办事项
-    const categories: Record<string, { high: TodoItem[]; medium: TodoItem[]; low: TodoItem[] }> = {}
-    // 仅将未完成的顶层任务参与分类（有 parentId 的为子任务）
-    const topLevelItems = items.filter((item) => !item.done && !item.parentId)
+    const itemMap = new Map<string, TodoItem>(items.map((item) => [item.id, item]))
 
-    for (const item of topLevelItems) {
+    const shouldStartBranch = (item: TodoItem, doneFlag: boolean) => {
+      if (!!item.done !== doneFlag) {
+        return false
+      }
+      if (!item.parentId) {
+        return true
+      }
+      const parent = itemMap.get(item.parentId)
+      if (!parent) {
+        return true
+      }
+      return !!parent.done !== doneFlag
+    }
+
+    const activeRoots = items.filter((item) => shouldStartBranch(item, false))
+    const completedRoots = items.filter((item) => shouldStartBranch(item, true))
+
+    // 按分类和优先级组织【未完成的根任务】
+    const categories: Record<string, { high: TodoItem[]; medium: TodoItem[]; low: TodoItem[] }> = {}
+    
+    for (const item of activeRoots) {
       const category = item.category || '默认'
       if (!categories[category]) {
         categories[category] = { high: [], medium: [], low: [] }
@@ -1582,7 +1599,7 @@ class ObsidianManager {
       categories[category][priority].push(item)
     }
 
-    // 生成未完成任务部分
+    // 生成未完成任务部分（包含所有子任务，无论子任务是否完成）
     lines.push('## 📋 待完成任务')
     lines.push('')
 
@@ -1598,7 +1615,7 @@ class ObsidianManager {
         if (priorityItems.high.length > 0) {
           lines.push('#### 🔴 高优先级')
           for (const item of priorityItems.high) {
-            lines.push(...this.formatTodoBranch(item, items, 0))
+            lines.push(...this.formatTodoTreeComplete(item, items, 0))
           }
           lines.push('')
         }
@@ -1607,7 +1624,7 @@ class ObsidianManager {
         if (priorityItems.medium.length > 0) {
           lines.push('#### 📋 普通优先级')
           for (const item of priorityItems.medium) {
-            lines.push(...this.formatTodoBranch(item, items, 0))
+            lines.push(...this.formatTodoTreeComplete(item, items, 0))
           }
           lines.push('')
         }
@@ -1616,22 +1633,21 @@ class ObsidianManager {
         if (priorityItems.low.length > 0) {
           lines.push('#### 🔵 低优先级')
           for (const item of priorityItems.low) {
-            lines.push(...this.formatTodoBranch(item, items, 0))
+            lines.push(...this.formatTodoTreeComplete(item, items, 0))
           }
           lines.push('')
         }
       }
     }
 
-    // 已完成任务部分
-    const completedItems = items.filter((item) => item.done)
-    if (completedItems.length > 0) {
+    // 已完成任务部分（包含所有子任务，无论子任务是否完成）
+    if (completedRoots.length > 0) {
       lines.push('## ✅ 已完成任务')
       lines.push('')
 
-      // 按分类组织已完成任务
+      // 按分类组织已完成的分支（包含父任务已完成或缺失的子任务）
       const completedCategories: Record<string, TodoItem[]> = {}
-      for (const item of completedItems) {
+      for (const item of completedRoots) {
         const category = item.category || '默认'
         if (!completedCategories[category]) {
           completedCategories[category] = []
@@ -1639,10 +1655,11 @@ class ObsidianManager {
         completedCategories[category].push(item)
       }
 
-      for (const [category, items] of Object.entries(completedCategories).sort()) {
+      for (const [category, categoryItems] of Object.entries(completedCategories).sort()) {
         lines.push(`### 📁 ${category}`)
-        for (const item of items) {
-          lines.push(this.formatSingleTodoItem(item))
+        for (const item of categoryItems) {
+          // 输出完整的任务树（包括所有子任务）
+          lines.push(...this.formatTodoTreeComplete(item, items, 0))
         }
         lines.push('')
       }
@@ -1689,15 +1706,16 @@ class ObsidianManager {
   }
 
   /**
-   * 输出一个任务及其未完成的子任务分支
+   * 输出一个任务及其所有子任务（完整的树结构）
+   * 注意：不管子任务是否完成，都输出
    */
-  private formatTodoBranch(root: TodoItem, allItems: TodoItem[], depth: number): string[] {
+  private formatTodoTreeComplete(root: TodoItem, allItems: TodoItem[], depth: number): string[] {
     const lines: string[] = []
     lines.push(this.formatSingleTodoItem(root, depth))
-    // 仅输出未完成的子任务到“未完成”区域，完成项进入“已完成”区域
-    const children = allItems.filter((i) => i.parentId === root.id && !i.done)
+    // 输出所有子任务（不管是否完成）
+    const children = allItems.filter((i) => i.parentId === root.id)
     for (const child of children) {
-      lines.push(...this.formatTodoBranch(child, allItems, depth + 1))
+      lines.push(...this.formatTodoTreeComplete(child, allItems, depth + 1))
     }
     return lines
   }
