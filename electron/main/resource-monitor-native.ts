@@ -44,7 +44,7 @@ export class NativeResourceMonitor {
   /**
    * 检测可用的 PowerShell 命令（Windows）
    */
-  private async getPowerShellCommand(): Promise<string> {
+  private async getPowerShellCommand(): Promise<string | null> {
     if (this.powershellCommand) return this.powershellCommand
     
     // 优先使用 pwsh (PowerShell Core)，回退到 powershell (Windows PowerShell)
@@ -61,8 +61,8 @@ export class NativeResourceMonitor {
         return 'powershell'
       } catch {
         log.error('No PowerShell found on system')
-        this.powershellCommand = 'pwsh' // 默认尝试 pwsh
-        return 'pwsh'
+        this.powershellCommand = null
+        return null
       }
     }
   }
@@ -142,6 +142,10 @@ export class NativeResourceMonitor {
         case 'win32': {
           // Windows: 使用 PowerShell (动态选择 pwsh 或 powershell)
           const psCmd = await this.getPowerShellCommand()
+          if (!psCmd) {
+            log.warn('[DiskInfo] Skipping fetch: PowerShell is unavailable')
+            break
+          }
           cmd = `${psCmd} -NoProfile -Command "$drive = Get-PSDrive -PSProvider FileSystem | Where-Object {$_.Root -eq 'C:\\'}; @{Used=$drive.Used; Total=($drive.Used + $drive.Free)} | ConvertTo-Json"`
           outputEncoding = 'utf8' // 改用 utf8 编码
           parseResult = (result) => {
@@ -232,6 +236,10 @@ export class NativeResourceMonitor {
           // 注意：Get-Process 的 CPU 属性是累积 CPU 时间（秒），不是实时使用率
           // 这里按工作集（内存）排序更有实用价值
           const psCmd = await this.getPowerShellCommand()
+          if (!psCmd) {
+            log.warn('[ProcessInfo] Skipping fetch: PowerShell is unavailable')
+            return []
+          }
           cmd = `${psCmd} -NoProfile -Command "Get-Process | Sort-Object -Property WorkingSet -Descending | Select-Object -First 10 Id, ProcessName, CPU, WorkingSet | ConvertTo-Json"`
           outputEncoding = 'utf8'
           
