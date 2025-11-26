@@ -470,14 +470,11 @@ const TodoListRenderer: React.FC<{
   onToggleExpand: (id: string) => void
   overItemId: string | null
 }> = ({ items, props, colors, expandedIds, onToggleExpand, overItemId }) => {
-  // 收集所有可排序的ID（用于DnD）
-  const sortableIds = items.map((item) => item.id)
-
   return (
-    <SortableContext items={sortableIds} strategy={verticalListSortingStrategy}>
+    <>
       {items.map((item) => {
         const isDropTarget = overItemId === item.id
-        
+
         return (
           <React.Fragment key={item.id}>
             <div
@@ -527,7 +524,7 @@ const TodoListRenderer: React.FC<{
           </React.Fragment>
         )
       })}
-    </SortableContext>
+    </>
   )
 }
 
@@ -727,6 +724,7 @@ export const TodoListPanel: React.FC<TodoListPanelProps> = (props) => {
   const renderTabContent = (items: TreeTodo[], emptyText: string, tabKey: 'active' | 'completed') => {
     const rootDropZoneId =
       tabKey === 'active' ? ROOT_DROP_ZONE_IDS.active : ROOT_DROP_ZONE_IDS.completed
+    const sortableIds = flattenTreeIds(items)
 
     return (
       <DndContext
@@ -743,16 +741,18 @@ export const TodoListPanel: React.FC<TodoListPanelProps> = (props) => {
           {items.length === 0 ? (
             <Empty description={emptyText} image={Empty.PRESENTED_IMAGE_SIMPLE} />
           ) : (
-            <AnimatePresence initial={false} mode="sync">
-              <TodoListRenderer
-                items={items}
-                props={props}
-                colors={colors}
-                expandedIds={expandedIds}
-                onToggleExpand={toggleExpand}
-                overItemId={overItemId}
-              />
-            </AnimatePresence>
+            <SortableContext items={sortableIds} strategy={verticalListSortingStrategy}>
+              <AnimatePresence initial={false} mode="sync">
+                <TodoListRenderer
+                  items={items}
+                  props={props}
+                  colors={colors}
+                  expandedIds={expandedIds}
+                  onToggleExpand={toggleExpand}
+                  overItemId={overItemId}
+                />
+              </AnimatePresence>
+            </SortableContext>
           )}
         </div>
         <DragOverlay dropAnimation={null}>
@@ -895,3 +895,16 @@ export const TodoListPanel: React.FC<TodoListPanelProps> = (props) => {
     </Card>
   )
 }
+  const flattenTreeIds = useCallback((nodes: TreeTodo[]): string[] => {
+    const ids: string[] = []
+    const walk = (arr: TreeTodo[]) => {
+      for (const node of arr) {
+        ids.push(node.id)
+        if (node.children) {
+          walk(node.children)
+        }
+      }
+    }
+    walk(nodes)
+    return ids
+  }, [])

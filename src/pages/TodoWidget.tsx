@@ -284,17 +284,31 @@ export const TodoWidget: React.FC = () => {
     onSave: handleManualSync,
   })
 
+  const dedupeTodoItems = useCallback((items: TodoItem[]): TodoItem[] => {
+    const seen = new Set<string>()
+    const result: TodoItem[] = []
+    for (let i = items.length - 1; i >= 0; i -= 1) {
+      const item = items[i]
+      if (seen.has(item.id)) {
+        continue
+      }
+      seen.add(item.id)
+      result.push(item)
+    }
+    return result.reverse()
+  }, [])
+
   const applyTodoUpdate = useCallback(
     (updater: (items: TodoItem[]) => TodoItem[]) => {
       setTodoItems((prev) => {
-        const next = updater(prev)
+        const next = dedupeTodoItems(updater(prev))
         if (isEnabled) {
           void sync(next)
         }
         return next
       })
     },
-    [isEnabled, sync]
+    [dedupeTodoItems, isEnabled, sync]
   )
 
   const actionInProgress = isActionInProgress || syncing
