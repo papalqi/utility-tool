@@ -33,6 +33,7 @@ import {
   DragStartEvent,
   DragOverlay,
   DragOverEvent,
+  useDroppable,
 } from '@dnd-kit/core'
 import {
   SortableContext,
@@ -67,10 +68,18 @@ interface TodoListPanelProps {
   onCategoryChange: (id: string, category: string) => void
   onPriorityChange: (id: string, priority: 'low' | 'medium' | 'high') => void
   onTodoNoteAction: (todo: TodoItem) => void
-  onReorderTodos?: (itemId: string, newParentId: string) => void
+  onReorderTodos?: (itemId: string, newParentId: string | null) => void
 }
 
 const buildTree = (items: TodoItem[], doneFlag: boolean): TreeTodo[] => {
+  // 去重：有时同一个 id 会在 filteredItems 中出现多份，这里统一按 id 去重
+  const normalizedItems = Array.from(
+    items.reduce<Map<string, TodoItem>>((map, item) => {
+      map.set(item.id, item)
+      return map
+    }, new Map()).values()
+  )
+
   // Robust check for done status, handling boolean, string 'true'/'false', and undefined
   const isDone = (d: boolean | string | undefined): boolean => {
     // Explicitly check for truthy done values
@@ -87,10 +96,10 @@ const buildTree = (items: TodoItem[], doneFlag: boolean): TreeTodo[] => {
   // This preserves the complete hierarchy for each parent task
 
   // Cache items for parent lookup
-  const itemMap = new Map<string, TodoItem>(items.map((it) => [it.id, it]))
+  const itemMap = new Map<string, TodoItem>(normalizedItems.map((it) => [it.id, it]))
 
   // First, get all items that match the done status
-  const matchingRootItems = items.filter((it) => {
+  const matchingRootItems = normalizedItems.filter((it) => {
     const itemDone = isDone(it.done)
     if (itemDone !== doneFlag) {
       return false
@@ -105,13 +114,19 @@ const buildTree = (items: TodoItem[], doneFlag: boolean): TreeTodo[] => {
       return true
     }
 
+    const parentDone = isDone(parent.done)
+    if (doneFlag && !parentDone) {
+      // parent is still active, do not show child in completed tab
+      return false
+    }
+
     // Only treat as non-root when parent is in the same tab (same doneFlag)
-    return isDone(parent.done) !== doneFlag
+    return parentDone !== doneFlag
   })
 
   // Recursive function to collect all children of a given item
   const collectChildren = (itemId: string): TreeTodo[] => {
-    const children = items
+    const children = normalizedItems
       .filter((it) => it.parentId === itemId)
       .map((child) => {
         const treeNode: TreeTodo = { ...child }
@@ -169,6 +184,44 @@ interface ThemeColors {
   info: string
 }
 
+type DropHint = 'child' | 'root' | null
+
+const ROOT_DROP_ZONE_IDS = {
+  active: 'todo-root-drop-active',
+  completed: 'todo-root-drop-completed',
+} as const
+
+const RootDropZone: React.FC<{
+  id: string
+  colors: ThemeColors
+  dropHint: DropHint
+}> = ({ id, colors, dropHint }) => {
+  const { setNodeRef, isOver } = useDroppable({ id })
+  const highlight = isOver || dropHint === 'root'
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={{
+        border: `2px dashed ${highlight ? colors.primary : colors.borderPrimary}`,
+        borderRadius: 12,
+        padding: '8px 12px',
+        display: 'flex',
+        alignItems: 'center',
+        gap: 8,
+        marginBottom: 12,
+        background: highlight ? `${colors.primary}15` : colors.bgSecondary,
+        color: highlight ? colors.primary : colors.textSecondary,
+        fontSize: 13,
+        fontWeight: 500,
+      }}
+    >
+      <DragOutlined />
+      <span>拖到这里可将任务提升为顶层</span>
+    </div>
+  )
+}
+
 // 可拖拽的任务卡片包装组件
 const SortableTodoItemCard: React.FC<{
   item: TreeTodo
@@ -201,8 +254,8 @@ const SortableTodoItemCard: React.FC<{
   }
 
   return (
-    <div ref={setNodeRef} style={style}>
-      <TodoItemCard {...props} dragHandleProps={{ ...attributes, ...listeners }} />
+    <div ref={setNodeRef} style={style} {...attributes} {...listeners}>
+      <TodoItemCard {...props} />
     </div>
   )
 }
@@ -222,7 +275,6 @@ const TodoItemCard: React.FC<{
   categories: string[]
   colors: ThemeColors
   onShowEdit: () => void
-  dragHandleProps?: any
 }> = ({
   item,
   selected,
@@ -237,7 +289,6 @@ const TodoItemCard: React.FC<{
   categories,
   colors,
   onShowEdit,
-  dragHandleProps,
 }) => {
   const displayText = stripObsidianLinks(item.text)
   const linkInfo = extractObsidianLinkTarget(item.text)
@@ -289,24 +340,6 @@ const TodoItemCard: React.FC<{
           background: priorityColor,
         }}
       />
-
-      {/* 拖拽手柄 */}
-      {dragHandleProps && (
-        <div
-          {...dragHandleProps}
-          style={{
-            width: 20,
-            display: 'flex',
-            justifyContent: 'center',
-            cursor: 'grab',
-            color: colors.textSecondary,
-            opacity: 0.6,
-          }}
-          onClick={(e) => e.stopPropagation()}
-        >
-          <DragOutlined style={{ fontSize: 14 }} />
-        </div>
-      )}
 
       {/* 展开/折叠按钮 */}
       <div
@@ -516,6 +549,9 @@ export const TodoListPanel: React.FC<TodoListPanelProps> = (props) => {
   const [activeTab, setActiveTab] = useState('active')
   const [activeDragId, setActiveDragId] = useState<string | null>(null)
   const [overItemId, setOverItemId] = useState<string | null>(null)
+  const [dropHint, setDropHint] = useState<DropHint>(null)
+  const [dragOverlaySize, setDragOverlaySize] = useState<{ width: number; height: number } | null>(null)
+  const [activeDragItem, setActiveDragItem] = useState<TodoItem | null>(null)
 
   const activeItems = useMemo(() => buildTree(filteredItems, false), [filteredItems])
   const completedItems = useMemo(() => buildTree(filteredItems, true), [filteredItems])
@@ -542,18 +578,51 @@ export const TodoListPanel: React.FC<TodoListPanelProps> = (props) => {
   }, [])
 
   // 处理拖拽开始
-  const handleDragStart = useCallback((event: DragStartEvent) => {
-    setActiveDragId(event.active.id as string)
-    setOverItemId(null)
-  }, [])
+  const handleDragStart = useCallback(
+    (event: DragStartEvent) => {
+      const activeId = event.active.id as string
+      setActiveDragId(activeId)
+      setOverItemId(null)
+      setDropHint(null)
+
+      const rect = event.active.rect.current
+      const width = rect?.initial?.width ?? rect?.translated?.width
+      const height = rect?.initial?.height ?? rect?.translated?.height
+      if (width && height) {
+        setDragOverlaySize({ width, height })
+      } else {
+        setDragOverlaySize(null)
+      }
+
+      const activeItem = filteredItems.find((item) => item.id === activeId) || null
+      setActiveDragItem(activeItem)
+
+    },
+    [filteredItems]
+  )
 
   // 处理拖拽覆盖（hover 状态）
   const handleDragOver = useCallback(
     (event: DragOverEvent) => {
       const { active, over } = event
+      const currentRootDropZoneId =
+        activeTab === 'active' ? ROOT_DROP_ZONE_IDS.active : ROOT_DROP_ZONE_IDS.completed
 
-      if (!over || active.id === over.id) {
+      if (!over) {
         setOverItemId(null)
+        setDropHint('root')
+        return
+      }
+
+      if (over.id === currentRootDropZoneId) {
+        setOverItemId(null)
+        setDropHint('root')
+        return
+      }
+
+      if (active.id === over.id) {
+        setOverItemId(null)
+        setDropHint(null)
         return
       }
 
@@ -563,6 +632,7 @@ export const TodoListPanel: React.FC<TodoListPanelProps> = (props) => {
 
       if (!activeItem || !overItem) {
         setOverItemId(null)
+        setDropHint(null)
         return
       }
 
@@ -580,13 +650,15 @@ export const TodoListPanel: React.FC<TodoListPanelProps> = (props) => {
 
       if (isDescendant(activeItem.id, overItem.id)) {
         setOverItemId(null)
+        setDropHint(null)
         return // 不允许拖拽
       }
 
       // 设置当前 hover 的目标
       setOverItemId(over.id as string)
+      setDropHint('child')
     },
-    [filteredItems]
+    [activeTab, filteredItems]
   )
 
   // 处理拖拽结束
@@ -595,15 +667,38 @@ export const TodoListPanel: React.FC<TodoListPanelProps> = (props) => {
       const { active, over } = event
       setActiveDragId(null)
       setOverItemId(null)
+      setDropHint(null)
+      setDragOverlaySize(null)
+      setActiveDragItem(null)
 
-      if (!over || active.id === over.id || !onReorderTodos) {
+      if (!onReorderTodos) {
         return
       }
 
       const activeItem = filteredItems.find((item) => item.id === active.id)
-      const overItem = filteredItems.find((item) => item.id === over.id)
+      if (!activeItem) {
+        return
+      }
 
-      if (!activeItem || !overItem) {
+      if (!over) {
+        onReorderTodos(activeItem.id, null)
+        return
+      }
+
+      const currentRootDropZoneId =
+        activeTab === 'active' ? ROOT_DROP_ZONE_IDS.active : ROOT_DROP_ZONE_IDS.completed
+
+      if (over.id === currentRootDropZoneId) {
+        onReorderTodos(activeItem.id, null)
+        return
+      }
+
+      if (active.id === over.id) {
+        return
+      }
+
+      const overItem = filteredItems.find((item) => item.id === over.id)
+      if (!overItem) {
         return
       }
 
@@ -625,14 +720,14 @@ export const TodoListPanel: React.FC<TodoListPanelProps> = (props) => {
 
       onReorderTodos(activeItem.id, overItem.id)
     },
-    [filteredItems, onReorderTodos]
+    [activeTab, filteredItems, onReorderTodos]
   )
 
   // 渲染当前 Tab 的内容
-  const renderTabContent = (items: TreeTodo[], emptyText: string) => {
-    if (items.length === 0) {
-      return <Empty description={emptyText} image={Empty.PRESENTED_IMAGE_SIMPLE} />
-    }
+  const renderTabContent = (items: TreeTodo[], emptyText: string, tabKey: 'active' | 'completed') => {
+    const rootDropZoneId =
+      tabKey === 'active' ? ROOT_DROP_ZONE_IDS.active : ROOT_DROP_ZONE_IDS.completed
+
     return (
       <DndContext
         sensors={sensors}
@@ -642,51 +737,56 @@ export const TodoListPanel: React.FC<TodoListPanelProps> = (props) => {
         onDragOver={handleDragOver}
       >
         <div style={{ height: '100%', overflow: 'auto', padding: '4px 12px 4px 4px' }}>
-          <AnimatePresence initial={false} mode="sync">
-            <TodoListRenderer
-              items={items}
-              props={props}
-              colors={colors}
-              expandedIds={expandedIds}
-              onToggleExpand={toggleExpand}
-              overItemId={overItemId}
-            />
-          </AnimatePresence>
+          {activeDragId ? (
+            <RootDropZone id={rootDropZoneId} colors={colors} dropHint={dropHint} />
+          ) : null}
+          {items.length === 0 ? (
+            <Empty description={emptyText} image={Empty.PRESENTED_IMAGE_SIMPLE} />
+          ) : (
+            <AnimatePresence initial={false} mode="sync">
+              <TodoListRenderer
+                items={items}
+                props={props}
+                colors={colors}
+                expandedIds={expandedIds}
+                onToggleExpand={toggleExpand}
+                overItemId={overItemId}
+              />
+            </AnimatePresence>
+          )}
         </div>
-        <DragOverlay>
+        <DragOverlay dropAnimation={null}>
           {activeDragId ? (
             <div
               style={{
                 padding: '12px 16px',
                 background: colors.bgSecondary,
-                border: `2px solid ${colors.primary}`,
+                border: `1px solid ${colors.primary}`,
                 borderRadius: 12,
                 opacity: 0.95,
-                boxShadow: '0 8px 24px rgba(0,0,0,0.2)',
-                minWidth: 200,
+                boxShadow: '0 6px 20px rgba(0,0,0,0.18)',
+                width: dragOverlaySize?.width ?? 320,
+                maxWidth: 520,
+                fontSize: 13,
+                color: colors.textPrimary,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 10,
+                pointerEvents: 'none',
               }}
             >
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <DragOutlined style={{ color: colors.primary, fontSize: 16 }} />
-                <span style={{ fontWeight: 500, color: colors.textPrimary }}>
-                  {stripObsidianLinks(
-                    filteredItems.find((item) => item.id === activeDragId)?.text || '拖动中...'
-                  )}
+              <DragOutlined style={{ color: colors.primary, fontSize: 14 }} />
+              <div style={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
+                <span style={{ fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  {stripObsidianLinks(activeDragItem?.text || '拖动中...')}
                 </span>
+                {dropHint === 'child' ? (
+                  <span style={{ fontSize: 11, color: colors.textSecondary }}>→ 成为子任务</span>
+                ) : null}
+                {dropHint === 'root' ? (
+                  <span style={{ fontSize: 11, color: colors.textSecondary }}>→ 成为顶层任务</span>
+                ) : null}
               </div>
-              {overItemId && (
-                <div
-                  style={{
-                    marginTop: 8,
-                    paddingTop: 8,
-                    borderTop: `1px solid ${colors.borderPrimary}`,
-                    fontSize: 12,
-                    color: colors.textSecondary,
-                  }}
-                >
-                  → 将成为子任务
-                </div>
-              )}
             </div>
           ) : null}
         </DragOverlay>
@@ -698,12 +798,12 @@ export const TodoListPanel: React.FC<TodoListPanelProps> = (props) => {
     {
       key: 'active',
       label: `进行中 (${activeItems.length})`,
-      children: renderTabContent(activeItems, '暂无待办任务'),
+      children: renderTabContent(activeItems, '暂无待办任务', 'active'),
     },
     {
       key: 'completed',
       label: `已完成 (${completedItems.length})`,
-      children: renderTabContent(completedItems, '暂无已完成任务'),
+      children: renderTabContent(completedItems, '暂无已完成任务', 'completed'),
     },
   ]
 

@@ -139,20 +139,29 @@ export class NativeResourceMonitor {
       let outputEncoding: BufferEncoding = 'utf8'
       
       switch (process.platform) {
-        case 'win32':
-          // Windows: 使用 PowerShell
-          cmd = `powershell -NoProfile -Command "Get-PSDrive -PSProvider FileSystem | Where-Object {$_.Root -eq 'C:\\'} | Select-Object @{Name='Used';Expression={$_.Used}}, @{Name='Total';Expression={$_.Used + $_.Free}} | ConvertTo-Json"`
-          outputEncoding = 'utf16le'
+        case 'win32': {
+          // Windows: 使用 PowerShell (动态选择 pwsh 或 powershell)
+          const psCmd = await this.getPowerShellCommand()
+          cmd = `${psCmd} -NoProfile -Command "$drive = Get-PSDrive -PSProvider FileSystem | Where-Object {$_.Root -eq 'C:\\'}; @{Used=$drive.Used; Total=($drive.Used + $drive.Free)} | ConvertTo-Json"`
+          outputEncoding = 'utf8' // 改用 utf8 编码
           parseResult = (result) => {
-            const data = JSON.parse(result)
-            if (data) {
-              const used = data.Used / 1024 / 1024 / 1024
-              const total = data.Total / 1024 / 1024 / 1024
-              return { used, total }
+            try {
+              log.debug('[DiskInfo] Raw PowerShell output:', result.substring(0, 200))
+              const data = JSON.parse(result.trim())
+              if (data && data.Used !== undefined && data.Total !== undefined) {
+                const used = data.Used / 1024 / 1024 / 1024
+                const total = data.Total / 1024 / 1024 / 1024
+                log.debug(`[DiskInfo] Parsed: used=${used.toFixed(2)}GB, total=${total.toFixed(2)}GB`)
+                return { used, total }
+              }
+              log.warn('[DiskInfo] Invalid data structure:', data)
+            } catch (e) {
+              log.error('[DiskInfo] Failed to parse JSON:', e, 'Raw:', result.substring(0, 100))
             }
             return null
           }
           break
+        }
           
         case 'darwin':
           // macOS: 使用 df 命令
@@ -196,10 +205,13 @@ export class NativeResourceMonitor {
           percent: Math.round((diskData.used / diskData.total) * 100)
         }
         this.lastDiskFetch = now
+        log.info(`[DiskInfo] Updated cache: ${JSON.stringify(this.cachedDiskData)}`)
         return this.cachedDiskData
+      } else {
+        log.warn('[DiskInfo] parseResult returned null')
       }
-    } catch {
-      // 静默失败
+    } catch (error) {
+      log.error('[DiskInfo] Failed to get disk info:', error)
     }
 
     return this.cachedDiskData || { used: 0, total: 0, percent: 0 }
