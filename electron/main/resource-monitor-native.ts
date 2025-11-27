@@ -144,7 +144,7 @@ export class NativeResourceMonitor {
           const psCmd = await this.getPowerShellCommand()
           if (!psCmd) {
             log.warn('[DiskInfo] Skipping fetch: PowerShell is unavailable')
-            break
+            return this.cachedDiskData || { used: 0, total: 0, percent: 0 }
           }
           cmd = `${psCmd} -NoProfile -Command "$drive = Get-PSDrive -PSProvider FileSystem | Where-Object {$_.Root -eq 'C:\\'}; @{Used=$drive.Used; Total=($drive.Used + $drive.Free)} | ConvertTo-Json"`
           outputEncoding = 'utf8' // 改用 utf8 编码

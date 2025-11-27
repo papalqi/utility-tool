@@ -168,20 +168,6 @@ const buildTree = (items: TodoItem[], doneFlag: boolean): TreeTodo[] => {
   return roots
 }
 
-const flattenTreeIds = (nodes: TreeTodo[]): string[] => {
-  const ids: string[] = []
-  const walk = (arr: TreeTodo[]) => {
-    for (const node of arr) {
-      ids.push(node.id)
-      if (node.children) {
-        walk(node.children)
-      }
-    }
-  }
-  walk(nodes)
-  return ids
-}
-
 interface ThemeColors {
   primary: string
   primaryDark: string
