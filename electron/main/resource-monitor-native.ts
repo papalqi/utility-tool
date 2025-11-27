@@ -4,12 +4,9 @@
  */
 
 import os from 'os'
-import { exec } from 'child_process'
-import { promisify } from 'util'
 import type { ResourceUsage, ProcessInfo } from '../../packages/shared/src/resource'
 import log from './logger'
-
-const execAsync = promisify(exec)
+import { systemCommandRunner } from './system/system-command-runner'
 
 /**
  * 使用原生 Node.js API 的资源监控器
@@ -33,48 +30,12 @@ export class NativeResourceMonitor {
   private cachedGpuData: ResourceUsage['gpu'] | null = null
   private lastGpuFetch = 0
   private readonly GPU_THROTTLE_MS = 30000 // GPU 缓存 30 秒
-  private powershellCommand: string | null = null
   private requestQueue: Promise<ResourceUsage> = Promise.resolve({
     cpu: 0,
     memory: { used: 0, total: 0, percent: 0 },
     disk: { used: 0, total: 0, percent: 0 },
     timestamp: Date.now()
   }) // 请求队列
-
-  /**
-   * 检测可用的 PowerShell 命令（Windows）
-   */
-  private async getPowerShellCommand(): Promise<string | null> {
-    if (this.powershellCommand) return this.powershellCommand
-    
-    // 优先使用 pwsh (PowerShell Core)，回退到 powershell (Windows PowerShell)
-    try {
-      await execAsync('pwsh -NoProfile -Command "exit 0"')
-      this.powershellCommand = 'pwsh'
-      log.debug('Using PowerShell Core (pwsh)')
-      return 'pwsh'
-    } catch {
-      try {
-        await execAsync('powershell -NoProfile -Command "exit 0"')
-        this.powershellCommand = 'powershell'
-        log.debug('Using Windows PowerShell (powershell)')
-        return 'powershell'
-      } catch {
-        log.error('No PowerShell found on system')
-        this.powershellCommand = null
-        return null
-      }
-    }
-  }
-
-  private async execAndDecode(cmd: string, encoding: BufferEncoding = 'utf8'): Promise<string> {
-    const { stdout } = await execAsync(cmd, { 
-      encoding: 'buffer',
-      maxBuffer: 1024 * 1024 // 1MB 缓冲区
-    })
-    // stdout 在 encoding: 'buffer' 模式下是 Buffer 类型
-    return (stdout as unknown as Buffer).toString(encoding)
-  }
 
   /**
    * 获取 CPU 使用率
@@ -134,20 +95,22 @@ export class NativeResourceMonitor {
     }
 
     try {
-      let cmd = ''
-      let parseResult: (result: string) => { used: number; total: number } | null
+      let parseResult: ((result: string) => { used: number; total: number } | null) | null = null
       let outputEncoding: BufferEncoding = 'utf8'
+      let fetchResult: (() => Promise<string | null>) | null = null
       
       switch (process.platform) {
         case 'win32': {
           // Windows: 使用 PowerShell (动态选择 pwsh 或 powershell)
-          const psCmd = await this.getPowerShellCommand()
-          if (!psCmd) {
-            log.warn('[DiskInfo] Skipping fetch: PowerShell is unavailable')
-            return this.cachedDiskData || { used: 0, total: 0, percent: 0 }
+          const script =
+            "\"$drive = Get-PSDrive -PSProvider FileSystem | Where-Object {$_.Root -eq 'C:\\\\'}; @{Used=$drive.Used; Total=($drive.Used + $drive.Free)} | ConvertTo-Json\""
+          fetchResult = async () => {
+            const result = await systemCommandRunner.execPowerShell(script, { encoding: outputEncoding })
+            if (!result) {
+              log.warn('[DiskInfo] Skipping fetch: PowerShell is unavailable')
+            }
+            return result
           }
-          cmd = `${psCmd} -NoProfile -Command "$drive = Get-PSDrive -PSProvider FileSystem | Where-Object {$_.Root -eq 'C:\\'}; @{Used=$drive.Used; Total=($drive.Used + $drive.Free)} | ConvertTo-Json"`
-          outputEncoding = 'utf8' // 改用 utf8 编码
           parseResult = (result) => {
             try {
               log.debug('[DiskInfo] Raw PowerShell output:', result.substring(0, 200))
@@ -167,9 +130,10 @@ export class NativeResourceMonitor {
           break
         }
           
-        case 'darwin':
+        case 'darwin': {
           // macOS: 使用 df 命令
-          cmd = `df -k / | tail -1`
+          const command = `df -k / | tail -1`
+          fetchResult = () => systemCommandRunner.exec(command, { encoding: outputEncoding })
           parseResult = (result) => {
             const parts = result.trim().split(/\s+/)
             if (parts.length >= 4) {
@@ -180,10 +144,12 @@ export class NativeResourceMonitor {
             return null
           }
           break
+        }
           
-        case 'linux':
+        case 'linux': {
           // Linux: 使用 df 命令
-          cmd = `df -B1 / | tail -1`
+          const command = `df -B1 / | tail -1`
+          fetchResult = () => systemCommandRunner.exec(command, { encoding: outputEncoding })
           parseResult = (result) => {
             const parts = result.trim().split(/\s+/)
             if (parts.length >= 4) {
@@ -194,12 +160,21 @@ export class NativeResourceMonitor {
             return null
           }
           break
+        }
           
         default:
           return this.cachedDiskData || { used: 0, total: 0, percent: 0 }
       }
       
-      const result = await this.execAndDecode(cmd, outputEncoding)
+      if (!fetchResult || !parseResult) {
+        return this.cachedDiskData || { used: 0, total: 0, percent: 0 }
+      }
+      
+      const result = await fetchResult()
+      if (!result) {
+        return this.cachedDiskData || { used: 0, total: 0, percent: 0 }
+      }
+      
       const diskData = parseResult(result)
       
       if (diskData) {
@@ -226,26 +201,27 @@ export class NativeResourceMonitor {
    */
   async getProcesses(): Promise<ProcessInfo[]> {
     try {
-      let cmd = ''
-      let parseResult: (result: string) => ProcessInfo[]
+      let parseResult: ((result: string) => ProcessInfo[]) | null = null
       let outputEncoding: BufferEncoding = 'utf8'
+      let fetchResult: (() => Promise<string | null>) | null = null
+      let debugCommand: string | null = null
       
       switch (process.platform) {
         case 'win32': {
           // Windows: 使用 PowerShell（优先 pwsh，回退到 powershell）
           // 注意：Get-Process 的 CPU 属性是累积 CPU 时间（秒），不是实时使用率
           // 这里按工作集（内存）排序更有实用价值
-          const psCmd = await this.getPowerShellCommand()
-          if (!psCmd) {
-            log.warn('[ProcessInfo] Skipping fetch: PowerShell is unavailable')
-            return []
-          }
-          cmd = `${psCmd} -NoProfile -Command "Get-Process | Sort-Object -Property WorkingSet -Descending | Select-Object -First 10 Id, ProcessName, CPU, WorkingSet | ConvertTo-Json"`
-          outputEncoding = 'utf8'
-          
-          // 获取系统总内存用于计算百分比
+          const script =
+            '"Get-Process | Sort-Object -Property WorkingSet -Descending | Select-Object -First 10 Id, ProcessName, CPU, WorkingSet | ConvertTo-Json"'
           const totalMemoryGB = os.totalmem() / 1024 / 1024 / 1024
-          
+          fetchResult = async () => {
+            const result = await systemCommandRunner.execPowerShell(script, { encoding: outputEncoding })
+            if (!result) {
+              log.warn('[ProcessInfo] Skipping fetch: PowerShell is unavailable')
+            }
+            return result
+          }
+          debugCommand = script
           parseResult = (result) => {
             try {
               log.debug('Raw PowerShell output:', result.substring(0, 200))
@@ -278,9 +254,11 @@ export class NativeResourceMonitor {
           break
         }
           
-        case 'darwin':
+        case 'darwin': {
           // macOS: 使用 ps 命令
-          cmd = `ps aux | head -11 | tail -10`
+          const command = `ps aux | head -11 | tail -10`
+          debugCommand = command
+          fetchResult = () => systemCommandRunner.exec(command, { encoding: outputEncoding })
           parseResult = (result) => {
             const lines = result.trim().split('\n')
             return lines.map(line => {
@@ -298,10 +276,13 @@ export class NativeResourceMonitor {
             }).filter(p => p !== null) as ProcessInfo[]
           }
           break
+        }
           
-        case 'linux':
+        case 'linux': {
           // Linux: 使用 ps 命令
-          cmd = `ps aux --sort=-%cpu | head -11 | tail -10`
+          const command = `ps aux --sort=-%cpu | head -11 | tail -10`
+          debugCommand = command
+          fetchResult = () => systemCommandRunner.exec(command, { encoding: outputEncoding })
           parseResult = (result) => {
             const lines = result.trim().split('\n')
             return lines.map(line => {
@@ -319,13 +300,23 @@ export class NativeResourceMonitor {
             }).filter(p => p !== null) as ProcessInfo[]
           }
           break
+        }
           
         default:
           return []
       }
       
-      log.debug(`Executing command: ${cmd}`)
-      const result = await this.execAndDecode(cmd, outputEncoding)
+      if (!fetchResult || !parseResult) {
+        return []
+      }
+      
+      if (debugCommand) {
+        log.debug(`[ProcessInfo] Executing command: ${debugCommand}`)
+      }
+      const result = await fetchResult()
+      if (!result) {
+        return []
+      }
       log.debug(`Command output length: ${result.length}`)
       return parseResult(result)
     } catch (error) {
@@ -353,8 +344,13 @@ export class NativeResourceMonitor {
         case 'win32':
           // Windows: 使用 PowerShell 和 WMI
           try {
-            const cmd = `powershell -NoProfile -Command "Get-WmiObject Win32_VideoController | Select-Object Name, AdapterRAM | ConvertTo-Json"`
-            const result = await this.execAndDecode(cmd, 'utf16le')
+            const script =
+              '"Get-WmiObject Win32_VideoController | Select-Object Name, AdapterRAM | ConvertTo-Json"'
+            const result = await systemCommandRunner.execPowerShell(script, { encoding: 'utf16le' })
+            if (!result) {
+              log.warn('[GPU] Skipping fetch: PowerShell is unavailable')
+              break
+            }
             const gpu = JSON.parse(result)
             if (gpu && gpu.AdapterRAM) {
               gpuData = {
@@ -380,7 +376,7 @@ export class NativeResourceMonitor {
           // Linux: 尝试使用 nvidia-smi（仅 NVIDIA GPU）
           try {
             const cmd = `nvidia-smi --query-gpu=utilization.gpu,memory.used,memory.total --format=csv,noheader,nounits`
-            const result = await this.execAndDecode(cmd, 'utf8')
+            const result = await systemCommandRunner.exec(cmd, { encoding: 'utf8' })
             const parts = result.trim().split(',').map(s => s.trim())
             if (parts.length >= 3) {
               gpuData = {

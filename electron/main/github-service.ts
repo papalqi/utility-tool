@@ -4,11 +4,8 @@
 
 import { Octokit } from '@octokit/rest'
 import simpleGit, { SimpleGit, type RemoteWithRefs } from 'simple-git'
-import { exec } from 'child_process'
-import { promisify } from 'util'
 import log from './logger'
-
-const execAsync = promisify(exec)
+import { systemCommandRunner } from './system/system-command-runner'
 
 /**
  * 验证 GitHub Token
@@ -137,7 +134,10 @@ export async function getGitInfo(repoPath: string): Promise<any> {
  */
 export async function execGitCommand(repoPath: string, command: string): Promise<string> {
   try {
-    const { stdout, stderr } = await execAsync(command, { cwd: repoPath })
+    const { stdout, stderr } = await systemCommandRunner.execWithResult(command, {
+      cwd: repoPath,
+      encoding: 'utf8',
+    })
     return stdout || stderr
   } catch (error: any) {
     log.error('[GitHub] Failed to execute git command', { repoPath, command, error })
