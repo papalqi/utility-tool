@@ -34,6 +34,7 @@ import {
   DragOverlay,
   DragOverEvent,
   useDroppable,
+  type Modifier,
 } from '@dnd-kit/core'
 import {
   SortableContext,
@@ -237,6 +238,7 @@ const SortableTodoItemCard: React.FC<{
   categories: string[]
   colors: ThemeColors
   onShowEdit: () => void
+  activeDragId: string | null
 }> = (props) => {
   const {
     attributes,
@@ -247,11 +249,14 @@ const SortableTodoItemCard: React.FC<{
     isDragging,
   } = useSortable({ id: props.item.id })
 
+  // 在拖拽过程中禁用所有项的位移动画，避免其它卡片被“挤”导致抖动；
+  // 被拖拽的源项在原地保持占位并设为透明，由 DragOverlay 显示浮层。
+  const disableTransforms = !!props.activeDragId
   const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-    opacity: isDragging ? 0.5 : 1,
-  }
+    transform: disableTransforms ? undefined : CSS.Transform.toString(transform),
+    transition: disableTransforms ? undefined : transition,
+    opacity: isDragging ? 0 : 1,
+  } as React.CSSProperties
 
   return (
     <div ref={setNodeRef} style={style} {...attributes} {...listeners}>
@@ -306,6 +311,7 @@ const TodoItemCard: React.FC<{
 
   return (
     <motion.div
+      data-todo-id={item.id}
       layout
       initial={false}
       animate={{ opacity: 1, y: 0 }}
@@ -424,7 +430,7 @@ const TodoItemCard: React.FC<{
             value={item.priority || 'medium'}
             size="small"
             variant="borderless"
-            onChange={(val) => onPriorityChange(val as any)}
+            onChange={(val) => onPriorityChange(val as 'low' | 'medium' | 'high')}
             style={{
               width: 'auto',
               minWidth: 50,
@@ -469,7 +475,8 @@ const TodoListRenderer: React.FC<{
   expandedIds: Set<string>
   onToggleExpand: (id: string) => void
   overItemId: string | null
-}> = ({ items, props, colors, expandedIds, onToggleExpand, overItemId }) => {
+  activeDragId: string | null
+}> = ({ items, props, colors, expandedIds, onToggleExpand, overItemId, activeDragId }) => {
   return (
     <>
       {items.map((item) => {
@@ -480,11 +487,6 @@ const TodoListRenderer: React.FC<{
             <div
               style={{
                 position: 'relative',
-                border: isDropTarget ? `2px dashed ${colors.primary}` : 'none',
-                borderRadius: isDropTarget ? 12 : 0,
-                padding: isDropTarget ? 4 : 0,
-                backgroundColor: isDropTarget ? `${colors.primary}15` : 'transparent',
-                transition: 'all 0.2s ease',
               }}
             >
               <SortableTodoItemCard
@@ -501,7 +503,22 @@ const TodoListRenderer: React.FC<{
                 categories={props.categories}
                 colors={colors}
                 onShowEdit={props.onShowEdit}
+                activeDragId={activeDragId}
               />
+              {isDropTarget && (
+                <div
+                  style={{
+                    position: 'absolute',
+                    inset: -2,
+                    border: `2px dashed ${colors.primary}`,
+                    borderRadius: 12,
+                    background: `${colors.primary}15`,
+                    pointerEvents: 'none',
+                    boxSizing: 'border-box',
+                    zIndex: 1,
+                  }}
+                />
+              )}
             </div>
             <AnimatePresence initial={false}>
               {item.children && expandedIds.has(item.id) && (
@@ -517,6 +534,7 @@ const TodoListRenderer: React.FC<{
                     expandedIds={expandedIds}
                     onToggleExpand={onToggleExpand}
                     overItemId={overItemId}
+                    activeDragId={activeDragId}
                   />
                 </motion.div>
               )}
@@ -549,6 +567,7 @@ export const TodoListPanel: React.FC<TodoListPanelProps> = (props) => {
   const [dropHint, setDropHint] = useState<DropHint>(null)
   const [dragOverlaySize, setDragOverlaySize] = useState<{ width: number; height: number } | null>(null)
   const [activeDragItem, setActiveDragItem] = useState<TodoItem | null>(null)
+  const [dragPointerOffset, setDragPointerOffset] = useState<{ x: number; y: number } | null>(null)
 
   const activeItems = useMemo(() => buildTree(filteredItems, false), [filteredItems])
   const completedItems = useMemo(() => buildTree(filteredItems, true), [filteredItems])
@@ -597,16 +616,52 @@ export const TodoListPanel: React.FC<TodoListPanelProps> = (props) => {
       setDropHint(null)
 
       const rect = event.active.rect.current
-      const width = rect?.initial?.width ?? rect?.translated?.width
-      const height = rect?.initial?.height ?? rect?.translated?.height
-      if (width && height) {
-        setDragOverlaySize({ width, height })
-      } else {
-        setDragOverlaySize(null)
-      }
-
       const activeItem = filteredItems.find((item) => item.id === activeId) || null
       setActiveDragItem(activeItem)
+
+      // 优先使用真实卡片元素的尺寸与位置（考虑了缩进与样式），找不到再回退到 dnd-kit 的 rect
+      const cardEl = document.querySelector(`[data-todo-id="${activeId}"]`) as HTMLElement | null
+      const cardRect = cardEl?.getBoundingClientRect()
+
+      const width = cardRect?.width ?? rect?.initial?.width ?? rect?.translated?.width
+      const height = cardRect?.height ?? rect?.initial?.height ?? rect?.translated?.height
+      if (width && height) setDragOverlaySize({ width, height })
+      else setDragOverlaySize(null)
+
+      // 记录指针在卡片内的相对偏移，用于让 DragOverlay 与鼠标保持同一相对位置
+      try {
+        const activatorEvent = (event as unknown as { activatorEvent?: MouseEvent | TouchEvent }).activatorEvent
+        let clientX = 0
+        let clientY = 0
+        if (activatorEvent && 'touches' in activatorEvent) {
+          const t = activatorEvent.touches?.[0]
+          clientX = t?.clientX ?? 0
+          clientY = t?.clientY ?? 0
+        } else if (activatorEvent && 'clientX' in activatorEvent) {
+          clientX = (activatorEvent as MouseEvent).clientX
+          clientY = (activatorEvent as MouseEvent).clientY
+        }
+
+        const baseLeft = cardRect?.left ?? rect?.initial?.left
+        const baseTop = cardRect?.top ?? rect?.initial?.top
+        const baseWidth = cardRect?.width ?? rect?.initial?.width
+        const baseHeight = cardRect?.height ?? rect?.initial?.height
+
+        if (
+          typeof baseLeft === 'number' &&
+          typeof baseTop === 'number' &&
+          typeof baseWidth === 'number' &&
+          typeof baseHeight === 'number'
+        ) {
+          const ox = Math.max(0, Math.min(clientX - baseLeft, baseWidth))
+          const oy = Math.max(0, Math.min(clientY - baseTop, baseHeight))
+          setDragPointerOffset({ x: ox, y: oy })
+        } else {
+          setDragPointerOffset(null)
+        }
+      } catch {
+        setDragPointerOffset(null)
+      }
 
     },
     [filteredItems]
@@ -681,6 +736,7 @@ export const TodoListPanel: React.FC<TodoListPanelProps> = (props) => {
       setDropHint(null)
       setDragOverlaySize(null)
       setActiveDragItem(null)
+      setDragPointerOffset(null)
 
       if (!onReorderTodos) {
         return
@@ -734,6 +790,20 @@ export const TodoListPanel: React.FC<TodoListPanelProps> = (props) => {
     [activeTab, filteredItems, onReorderTodos]
   )
 
+  // 通过 Modifier 将 DragOverlay 的参考点从中心调整为指针按下的相对位置
+  const overlayOffsetModifier = React.useCallback<Modifier>(
+    ({ transform }) => {
+      if (!dragOverlaySize || !dragPointerOffset) return transform
+      // 默认 Overlay 以中心对齐指针，这里将其改为以指针按下时在卡片内的相对偏移对齐
+      return {
+        ...transform,
+        x: transform.x - (dragOverlaySize.width / 2 - dragPointerOffset.x),
+        y: transform.y - (dragOverlaySize.height / 2 - dragPointerOffset.y),
+      }
+    },
+    [dragOverlaySize, dragPointerOffset]
+  )
+
   // 渲染当前 Tab 的内容
   const renderTabContent = (items: TreeTodo[], emptyText: string, tabKey: 'active' | 'completed') => {
     const rootDropZoneId =
@@ -764,29 +834,32 @@ export const TodoListPanel: React.FC<TodoListPanelProps> = (props) => {
                   expandedIds={expandedIds}
                   onToggleExpand={toggleExpand}
                   overItemId={overItemId}
+                  activeDragId={activeDragId}
                 />
               </AnimatePresence>
             </SortableContext>
           )}
         </div>
-        <DragOverlay dropAnimation={null}>
+        <DragOverlay dropAnimation={null} modifiers={[overlayOffsetModifier]}>
           {activeDragId ? (
             <div
               style={{
-                padding: '12px 16px',
+                padding: '12px 8px 12px 12px',
                 background: colors.bgSecondary,
                 border: `1px solid ${colors.primary}`,
                 borderRadius: 12,
                 opacity: 0.95,
                 boxShadow: '0 6px 20px rgba(0,0,0,0.18)',
                 width: dragOverlaySize?.width ?? 320,
-                maxWidth: 520,
+                height: dragOverlaySize?.height ?? undefined,
+                boxSizing: 'border-box',
                 fontSize: 13,
                 color: colors.textPrimary,
                 display: 'flex',
                 alignItems: 'center',
                 gap: 10,
                 pointerEvents: 'none',
+                willChange: 'transform',
               }}
             >
               <DragOutlined style={{ color: colors.primary, fontSize: 14 }} />
