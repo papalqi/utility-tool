@@ -102,6 +102,8 @@ export class NativeResourceMonitor {
       switch (process.platform) {
         case 'win32': {
           // Windows: 使用 PowerShell (动态选择 pwsh 或 powershell)
+          const psCmd = await systemCommandRunner.getPowerShellCommand()
+          outputEncoding = psCmd === 'powershell' ? 'utf16le' : 'utf8'
           const script =
             "\"$drive = Get-PSDrive -PSProvider FileSystem | Where-Object {$_.Root -eq 'C:\\\\'}; @{Used=$drive.Used; Total=($drive.Used + $drive.Free)} | ConvertTo-Json\""
           fetchResult = async () => {
@@ -178,11 +180,10 @@ export class NativeResourceMonitor {
       const diskData = parseResult(result)
       
       if (diskData) {
-        this.cachedDiskData = {
-          used: Math.round(diskData.used * 100) / 100,
-          total: Math.round(diskData.total * 100) / 100,
-          percent: Math.round((diskData.used / diskData.total) * 100)
-        }
+        const used = Number.isFinite(diskData.used) ? Math.round(diskData.used * 100) / 100 : 0
+        const total = Number.isFinite(diskData.total) ? Math.round(diskData.total * 100) / 100 : 0
+        const percent = total > 0 ? Math.round((used / total) * 100) : 0
+        this.cachedDiskData = { used, total, percent }
         this.lastDiskFetch = now
         log.info(`[DiskInfo] Updated cache: ${JSON.stringify(this.cachedDiskData)}`)
         return this.cachedDiskData
@@ -211,6 +212,8 @@ export class NativeResourceMonitor {
           // Windows: 使用 PowerShell（优先 pwsh，回退到 powershell）
           // 注意：Get-Process 的 CPU 属性是累积 CPU 时间（秒），不是实时使用率
           // 这里按工作集（内存）排序更有实用价值
+          const psCmd = await systemCommandRunner.getPowerShellCommand()
+          outputEncoding = psCmd === 'powershell' ? 'utf16le' : 'utf8'
           const script =
             '"Get-Process | Sort-Object -Property WorkingSet -Descending | Select-Object -First 10 Id, ProcessName, CPU, WorkingSet | ConvertTo-Json"'
           const totalMemoryGB = os.totalmem() / 1024 / 1024 / 1024

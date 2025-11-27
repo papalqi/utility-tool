@@ -35,6 +35,14 @@ const MAX_HISTORY_POINTS = 30
 
 const ResourceMonitorCard: React.FC = () => {
   const { colors } = useTheme()
+  const safePercent = (n: number | null | undefined) => {
+    const v = typeof n === 'number' ? n : 0
+    return Number.isFinite(v) && v >= 0 ? Math.min(100, Math.max(0, Math.round(v))) : 0
+  }
+  const safeFixed = (n: number | null | undefined, digits = 0) => {
+    const v = typeof n === 'number' ? n : 0
+    return Number.isFinite(v) ? v.toFixed(digits) : (0).toFixed(digits)
+  }
   const [currentUsage, setCurrentUsage] = useState<ResourceUsage | null>(null)
   const [history, setHistory] = useState<HistoryPoint[]>([])
   const [processes, setProcesses] = useState<ProcessInfo[]>([])
@@ -52,10 +60,10 @@ const ResourceMonitorCard: React.FC = () => {
       setHistory((prev) => {
         const newPoint: HistoryPoint = {
           time: new Date().toLocaleTimeString('en-US', { hour12: false }),
-          cpu: usage.cpu,
-          memory: usage.memory.percent,
-          disk: usage.disk.percent,
-          gpu: usage.gpu?.percent,
+          cpu: safePercent(usage.cpu),
+          memory: safePercent(usage.memory.percent),
+          disk: safePercent(usage.disk.percent),
+          gpu: usage.gpu ? safePercent(usage.gpu.percent) : undefined,
         }
         return [...prev, newPoint].slice(-MAX_HISTORY_POINTS)
       })
@@ -119,10 +127,10 @@ const ResourceMonitorCard: React.FC = () => {
         {currentUsage && (
           <div style={{ marginBottom: 16 }}>
             <Space direction="vertical" size={8} style={{ width: '100%' }}>
-              <div><div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}><Text type="secondary">CPU</Text><Text strong>{currentUsage.cpu}%</Text></div><Progress percent={currentUsage.cpu} strokeColor={colors.primary} showInfo={false} size="small" /></div>
-              <div><div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}><Text type="secondary">内存</Text><Text strong>{currentUsage.memory.used.toFixed(1)} / {currentUsage.memory.total.toFixed(1)} GB ({currentUsage.memory.percent}%)</Text></div><Progress percent={currentUsage.memory.percent} strokeColor={colors.success} showInfo={false} size="small" /></div>
-              <div><div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}><Text type="secondary">磁盘</Text><Text strong>{currentUsage.disk.used.toFixed(0)} / {currentUsage.disk.total.toFixed(0)} GB ({currentUsage.disk.percent}%)</Text></div><Progress percent={currentUsage.disk.percent} strokeColor={colors.warning} showInfo={false} size="small" /></div>
-              {currentUsage.gpu && <div><div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}><Text type="secondary">GPU</Text><Text strong>{currentUsage.gpu.percent}%</Text></div><Progress percent={currentUsage.gpu.percent} strokeColor={colors.info} showInfo={false} size="small" /></div>}
+              <div><div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}><Text type="secondary">CPU</Text><Text strong>{safePercent(currentUsage.cpu)}%</Text></div><Progress percent={safePercent(currentUsage.cpu)} strokeColor={colors.primary} showInfo={false} size="small" /></div>
+              <div><div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}><Text type="secondary">内存</Text><Text strong>{safeFixed(currentUsage.memory.used, 1)} / {safeFixed(currentUsage.memory.total, 1)} GB ({safePercent(currentUsage.memory.percent)}%)</Text></div><Progress percent={safePercent(currentUsage.memory.percent)} strokeColor={colors.success} showInfo={false} size="small" /></div>
+              <div><div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}><Text type="secondary">磁盘</Text><Text strong>{safeFixed(currentUsage.disk.used, 0)} / {safeFixed(currentUsage.disk.total, 0)} GB ({safePercent(currentUsage.disk.percent)}%)</Text></div><Progress percent={safePercent(currentUsage.disk.percent)} strokeColor={colors.warning} showInfo={false} size="small" /></div>
+              {currentUsage.gpu && <div><div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}><Text type="secondary">GPU</Text><Text strong>{safePercent(currentUsage.gpu.percent)}%</Text></div><Progress percent={safePercent(currentUsage.gpu.percent)} strokeColor={colors.info} showInfo={false} size="small" /></div>}
             </Space>
           </div>
         )}
