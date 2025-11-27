@@ -15,6 +15,7 @@
   },
   "scripts": {
     "dev": "vite",
+    "dev:win": "pwsh -ExecutionPolicy Bypass -File ./scripts/dev/dev-start.ps1",
     "build": "tsc && vite build && electron-builder",
     "build:dir": "vite build && electron-builder --dir",
     "preview": "vite preview",
