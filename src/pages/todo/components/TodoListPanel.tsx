@@ -565,6 +565,20 @@ export const TodoListPanel: React.FC<TodoListPanelProps> = (props) => {
     })
   )
 
+  const flattenTreeIds = useCallback((nodes: TreeTodo[]): string[] => {
+    const ids: string[] = []
+    const walk = (arr: TreeTodo[]) => {
+      for (const node of arr) {
+        ids.push(node.id)
+        if (node.children) {
+          walk(node.children)
+        }
+      }
+    }
+    walk(nodes)
+    return ids
+  }, [])
+
   const toggleExpand = useCallback((id: string) => {
     setExpandedIds((prev) => {
       const next = new Set(prev)
@@ -895,16 +909,3 @@ export const TodoListPanel: React.FC<TodoListPanelProps> = (props) => {
     </Card>
   )
 }
-  const flattenTreeIds = useCallback((nodes: TreeTodo[]): string[] => {
-    const ids: string[] = []
-    const walk = (arr: TreeTodo[]) => {
-      for (const node of arr) {
-        ids.push(node.id)
-        if (node.children) {
-          walk(node.children)
-        }
-      }
-    }
-    walk(nodes)
-    return ids
-  }, [])
