@@ -20,15 +20,19 @@ class SystemCommandRunner {
       return this.detectedPowerShell
     }
 
-    const candidates = ['pwsh', 'powershell']
-    for (const candidate of candidates) {
+    // 优先使用 pwsh，符合仓库规则
+    const candidates: Array<{ cmd: string; testFlag: string }> = [
+      { cmd: 'pwsh', testFlag: '-c' },
+      { cmd: 'powershell', testFlag: '-Command' },
+    ]
+    for (const { cmd, testFlag } of candidates) {
       try {
-        await execAsync(`${candidate} -NoProfile -Command "exit 0"`)
-        this.detectedPowerShell = candidate
-        log.debug(`[SystemCommandRunner] Using PowerShell ${candidate}`)
-        return candidate
+        await execAsync(`${cmd} ${testFlag} "exit 0"`)
+        this.detectedPowerShell = cmd
+        log.debug(`[SystemCommandRunner] Using PowerShell ${cmd}`)
+        return cmd
       } catch (error) {
-        log.debug(`[SystemCommandRunner] ${candidate} is not available`, error)
+        log.debug(`[SystemCommandRunner] ${cmd} is not available`, error)
       }
     }
 
@@ -67,7 +71,9 @@ class SystemCommandRunner {
     if (!psCmd) {
       return null
     }
-    const fullCommand = `${psCmd} -NoProfile -Command ${command}`
+    // 根据仓库规则：pwsh 使用 -c，powershell 使用 -Command
+    const flag = psCmd === 'pwsh' ? '-c' : '-Command'
+    const fullCommand = `${psCmd} ${flag} ${command}`
     return this.exec(fullCommand, options)
   }
 }

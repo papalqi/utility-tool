@@ -22,6 +22,13 @@ interface CpuInfo {
   }
 }
 
+interface PowerShellProcess {
+  Id: number
+  ProcessName?: string
+  CPU?: number
+  WorkingSet?: number
+}
+
 export class NativeResourceMonitor {
   private lastCpuInfo: CpuInfo[] | null = null
   private cachedGpuData: ResourceUsage['gpu'] | null = null
@@ -32,7 +39,7 @@ export class NativeResourceMonitor {
     memory: { used: 0, total: 0, percent: 0 },
     disk: { used: 0, total: 0, percent: 0 },
     timestamp: Date.now()
-  }) // 请求队列
+  }) // 请求队列（disk 保留为默认值，不再获取）
 
   /**
    * 获取 CPU 使用率
@@ -118,8 +125,8 @@ export class NativeResourceMonitor {
                 processes = [processes]
               }
               const parsed = processes
-                .filter((p: any) => p && p.Id) // 过滤无效数据
-                .map((p: any) => {
+                .filter((p: PowerShellProcess) => p && p.Id) // 过滤无效数据
+                .map((p: PowerShellProcess) => {
                   const memoryMB = Math.round((p.WorkingSet || 0) / 1024 / 1024)
                   const memoryGB = memoryMB / 1024
                   return {
@@ -313,7 +320,7 @@ export class NativeResourceMonitor {
     return {
       cpu,
       memory,
-      disk: { used: 0, total: 0, percent: 0 },
+      disk: { used: 0, total: 0, percent: 0 }, // 磁盘信息已禁用，返回默认值
       gpu,
       timestamp: Date.now()
     }
