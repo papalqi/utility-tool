@@ -68,12 +68,12 @@ const createWindow = () => {
     show: false,
   })
 
-  // 动态设置 CSP，支持配置的文件传输服务器
+  // 动态设置 CSP，支持配置的文件传输服务器和 PicGo 服务器
   mainWindow.webContents.session.webRequest.onHeadersReceived((details, callback) => {
     const config = configManager.getConfig()
     const fileTransferUrl = config?.file_transfer?.server_url || 'http://localhost:3000/api'
     
-    // 提取域名和端口（origin）
+    // 提取文件传输服务器域名和端口（origin）
     let fileTransferOrigin = 'http://localhost:3000'
     try {
       const url = new URL(fileTransferUrl)
@@ -82,14 +82,25 @@ const createWindow = () => {
       // 如果解析失败，使用原始值
     }
 
+    // 提取 PicGo 服务器地址（如果配置了）
+    const picgoServerUrl = config?.attachment?.picgo_server_url || 'http://127.0.0.1:36677'
+    let picgoOrigin = ''
+    try {
+      const picgoUrl = new URL(picgoServerUrl)
+      picgoOrigin = picgoUrl.origin
+    } catch {
+      // 如果解析失败，使用默认值
+      picgoOrigin = 'http://127.0.0.1:36677'
+    }
+
     // 开发环境需要允许内联脚本和 eval（用于 Vite 热重载和 React DevTools）
     const isDev = process.env.VITE_DEV_SERVER_URL !== undefined
     const scriptSrc = isDev 
       ? "'self' 'unsafe-inline' 'unsafe-eval'"
       : "'self'"
 
-    // connect-src: 包含文件传输服务器地址（支持远程服务器）
-    const connectSrc = `'self' ws: wss: ${fileTransferOrigin}`
+    // connect-src: 包含文件传输服务器地址和 PicGo 服务器地址（支持远程服务器）
+    const connectSrc = `'self' ws: wss: ${fileTransferOrigin} ${picgoOrigin}`
 
     callback({
       responseHeaders: {
