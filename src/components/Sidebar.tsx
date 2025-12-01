@@ -5,7 +5,6 @@ import {
   ApiOutlined,
   MessageOutlined,
   CheckSquareOutlined,
-  ClockCircleOutlined,
   CalendarOutlined,
   CodeOutlined,
   CloudUploadOutlined,
@@ -62,11 +61,6 @@ const BASE_MENU_ITEMS = [
     key: 'todo',
     icon: <CheckSquareOutlined />,
     label: 'TODO',
-  },
-  {
-    key: 'pomodoro',
-    icon: <ClockCircleOutlined />,
-    label: 'Pomodoro',
   },
   {
     key: 'calendar',

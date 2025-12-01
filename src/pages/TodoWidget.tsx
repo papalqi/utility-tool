@@ -54,8 +54,8 @@ const normalizeTodoItems = (items: TodoItem[]): TodoItem[] =>
 
 export const TodoWidget: React.FC = () => {
   const { message, modal } = App.useApp()
-  const { startPomodoroWithTask } = useAppContext()
-  const { setActiveWidget } = useNavigation()
+  useAppContext() // 保持 context 连接
+  useNavigation() // 保持 navigation 连接
   const config = useConfig()
   const [form] = Form.useForm<TodoFormValues>()
 
@@ -1154,19 +1154,6 @@ export const TodoWidget: React.FC = () => {
     })
   }
 
-  /**
-   * Start Pomodoro timer - switch to Pomodoro page
-   */
-  const handleStartPomodoro = () => {
-    if (!selectedTodo) {
-      message.warning('请先选择一个任务')
-      return
-    }
-    startPomodoroWithTask(selectedTodo)
-    setActiveWidget('pomodoro')
-    message.success(`已启动番茄钟: ${selectedTodo.text}`)
-  }
-
   const handleTodoNoteAction = useCallback(
     async (item: TodoItem) => {
       if (!isEnabled) {
@@ -1361,7 +1348,6 @@ export const TodoWidget: React.FC = () => {
                   onClose={() => setSelectedTodo(null)}
                   onEdit={showEditDialog}
                   onDelete={handleDelete}
-                  onStartPomodoro={handleStartPomodoro}
                 />
               </Col>
             )}

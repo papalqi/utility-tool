@@ -16,9 +16,9 @@ import {
   CloseOutlined,
   EditOutlined,
   DeleteOutlined,
-  ClockCircleOutlined,
 } from '@ant-design/icons'
 import { AttachmentThumbnail } from '@/components/AttachmentThumbnail'
+import { PomodoroWidget } from '@/pages/PomodoroWidget'
 import type { TodoItem } from '@/shared/types'
 import type { TodoStats } from '../types'
 import { useTheme } from '@/contexts/ThemeContext'
@@ -35,7 +35,6 @@ interface TodoDetailsPanelProps {
   onClose?: () => void
   onEdit?: () => void
   onDelete?: () => void
-  onStartPomodoro?: () => void
 }
 
 export const TodoDetailsPanel: React.FC<TodoDetailsPanelProps> = ({
@@ -45,7 +44,6 @@ export const TodoDetailsPanel: React.FC<TodoDetailsPanelProps> = ({
   onClose,
   onEdit,
   onDelete,
-  onStartPomodoro,
 }) => {
   const { colors } = useTheme()
 
@@ -70,6 +68,9 @@ export const TodoDetailsPanel: React.FC<TodoDetailsPanelProps> = ({
       exit={{ opacity: 0, x: 20 }}
       style={{ height: '100%', display: 'flex', flexDirection: 'column', gap: 16 }}
     >
+      {/* Pomodoro Timer - 放在顶部 */}
+      <PomodoroWidget linkedTask={selectedTodo} compact />
+
       <Card
         style={{ background: colors.bgSecondary, border: `1px solid ${colors.borderPrimary}` }}
         title={
@@ -154,9 +155,6 @@ export const TodoDetailsPanel: React.FC<TodoDetailsPanelProps> = ({
             </Button>
             <Button icon={<PlusOutlined />} onClick={onAddSubtask}>
               Subtask
-            </Button>
-            <Button icon={<ClockCircleOutlined />} onClick={onStartPomodoro}>
-              Focus
             </Button>
             <Button icon={<DeleteOutlined />} danger onClick={onDelete}>
               Delete

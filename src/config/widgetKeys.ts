@@ -4,7 +4,6 @@ export const DEFAULT_VISIBLE_TABS = [
   'generic-ai',
   'ai-chat',
   'todo',
-  'pomodoro',
   'calendar',
   'scripts',
   'environment',
