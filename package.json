@@ -136,6 +136,7 @@
       "repo": "utility-tool",
       "releaseType": "release"
     },
+    "artifactName": "PC.Utility.Tool.Setup.${version}.${ext}",
     "mac": {
       "category": "public.app-category.productivity",
       "target": [
