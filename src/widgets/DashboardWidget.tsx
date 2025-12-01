@@ -17,7 +17,6 @@ import {
 import {
   CheckSquareOutlined,
   CalendarOutlined,
-  ClockCircleOutlined,
   RocketOutlined,
   RightOutlined,
   ProjectOutlined,
@@ -31,6 +30,7 @@ import { configManager } from '@/core/ConfigManager'
 import type { TodoItem, Project, CalendarEvent } from '@/shared/types'
 import ResourceMonitorCard from '@/components/widgets/ResourceMonitorCard'
 import QuickLinksCard from '@/components/widgets/QuickLinksCard'
+import { PomodoroWidget } from '@/pages/PomodoroWidget'
 
 const { Title, Text } = Typography
 
@@ -260,13 +260,6 @@ const DashboardWidget: React.FC = () => {
                         onClick={() => setActiveWidget('todo')}
                       />
                     </Tooltip>
-                    <Tooltip title="Focus Mode">
-                      <Button
-                        shape="circle"
-                        icon={<ClockCircleOutlined />}
-                        onClick={() => setActiveWidget('pomodoro')}
-                      />
-                    </Tooltip>
                     <Tooltip title="Run Script">
                       <Button
                         shape="circle"
@@ -286,6 +279,16 @@ const DashboardWidget: React.FC = () => {
                 transition={{ type: 'spring', stiffness: 300 }}
               >
                 <ResourceMonitorCard />
+              </motion.div>
+            </Col>
+
+            {/* 番茄钟 */}
+            <Col span={12}>
+              <motion.div
+                whileHover={{ scale: 1.02 }}
+                transition={{ type: 'spring', stiffness: 300 }}
+              >
+                <PomodoroWidget compact />
               </motion.div>
             </Col>
 

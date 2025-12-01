@@ -19,7 +19,6 @@ const FileTransferWidget = lazy(() => import('../widgets/FileTransferWidget'))
 const TodoWidget = lazy(() =>
   import('../pages/TodoWidget').then((m) => ({ default: m.TodoWidget }))
 )
-const PomodoroWidget = lazy(() => import('../pages/PomodoroWidget'))
 const CalendarWidget = lazy(() => import('../widgets/CalendarWidget'))
 const ScriptsWidget = lazy(() => import('../widgets/ScriptsWidget'))
 const EnvironmentWidget = lazy(() => import('../widgets/EnvironmentWidget'))
@@ -62,7 +61,6 @@ const BASE_WIDGETS: WidgetEntry[] = [
   { key: 'terminal', Component: TerminalWidget, keepAlive: true }, // 终端进程
   { key: 'file-transfer', Component: FileTransferWidget, keepAlive: true }, // 文件传输任务
   { key: 'adb', Component: ADBWidget, keepAlive: true }, // ADB 连接
-  { key: 'pomodoro', Component: PomodoroWidget, keepAlive: true }, // 番茄钟计时器
   
   // AI 相关 - 根据需求配置
   { key: 'ai-cli', Component: AICliWidget, keepAlive: false },
