@@ -136,13 +136,13 @@
       "repo": "utility-tool",
       "releaseType": "release"
     },
-    "artifactName": "PC.Utility.Tool.Setup.${version}.${ext}",
     "mac": {
       "category": "public.app-category.productivity",
       "target": [
         "dmg",
         "zip"
-      ]
+      ],
+      "artifactName": "PC.Utility.Tool.${version}.${ext}"
     },
     "win": {
       "target": [
@@ -153,7 +153,8 @@
           ]
         }
       ],
-      "publisherName": "papalqi"
+      "publisherName": "papalqi",
+      "artifactName": "PC.Utility.Tool.Setup.${version}.${ext}"
     },
     "nsis": {
       "oneClick": false,
@@ -167,7 +168,8 @@
         "AppImage",
         "deb"
       ],
-      "category": "Utility"
+      "category": "Utility",
+      "artifactName": "PC.Utility.Tool.${version}.${ext}"
     }
   }
 }

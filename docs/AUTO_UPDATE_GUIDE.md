@@ -119,7 +119,10 @@ npm run electron:build
 2. 提示用户下载更新
 3. 下载并安装
 
-> ⚠️ **注意**：GitHub Release 中的安装包名称必须与构建时生成的一致（当前为 `PC.Utility.Tool.Setup.<version>.<ext>` 以及对应 `.blockmap`）。发布后不要手动改名，否则自动更新会因为找不到文件而 404。
+> ⚠️ **注意**：
+> - Windows NSIS 安装包名称为 `PC.Utility.Tool.Setup.<version>.<ext>`，对应差分文件为 `PC.Utility.Tool.Setup.<version>.<ext>.blockmap`
+> - Mac/Linux 安装包名称为 `PC.Utility.Tool.<version>.<ext>`
+> - GitHub Release 中的安装包名称必须与构建时生成的一致，发布后不要手动改名，否则自动更新会因为找不到文件而 404。
 
 ---
 
