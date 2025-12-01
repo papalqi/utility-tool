@@ -24,9 +24,6 @@ interface CpuInfo {
 
 export class NativeResourceMonitor {
   private lastCpuInfo: CpuInfo[] | null = null
-  private cachedDiskData: { used: number; total: number; percent: number } | null = null
-  private lastDiskFetch = 0
-  private readonly DISK_THROTTLE_MS = 30000 // 延长至 30 秒
   private cachedGpuData: ResourceUsage['gpu'] | null = null
   private lastGpuFetch = 0
   private readonly GPU_THROTTLE_MS = 30000 // GPU 缓存 30 秒
@@ -83,119 +80,6 @@ export class NativeResourceMonitor {
     }
   }
 
-  /**
-   * 获取磁盘信息（跨平台）
-   */
-  private async getDiskInfo(): Promise<ResourceUsage['disk']> {
-    const now = Date.now()
-    
-    // 使用缓存
-    if (this.cachedDiskData && now - this.lastDiskFetch < this.DISK_THROTTLE_MS) {
-      return this.cachedDiskData
-    }
-
-    try {
-      let parseResult: ((result: string) => { used: number; total: number } | null) | null = null
-      let outputEncoding: BufferEncoding = 'utf8'
-      let fetchResult: (() => Promise<string | null>) | null = null
-      
-      switch (process.platform) {
-        case 'win32': {
-          // Windows: 使用 PowerShell (动态选择 pwsh 或 powershell)
-          const psCmd = await systemCommandRunner.getPowerShellCommand()
-          outputEncoding = psCmd === 'powershell' ? 'utf16le' : 'utf8'
-          const script =
-            "\"$drive = Get-PSDrive -PSProvider FileSystem | Where-Object {$_.Root -eq 'C:\\\\'}; @{Used=$drive.Used; Total=($drive.Used + $drive.Free)} | ConvertTo-Json\""
-          fetchResult = async () => {
-            const result = await systemCommandRunner.execPowerShell(script, { encoding: outputEncoding })
-            if (!result) {
-              log.warn('[DiskInfo] Skipping fetch: PowerShell is unavailable')
-            }
-            return result
-          }
-          parseResult = (result) => {
-            try {
-              log.debug('[DiskInfo] Raw PowerShell output:', result.substring(0, 200))
-              const data = JSON.parse(result.trim())
-              if (data && data.Used !== undefined && data.Total !== undefined) {
-                const used = data.Used / 1024 / 1024 / 1024
-                const total = data.Total / 1024 / 1024 / 1024
-                log.debug(`[DiskInfo] Parsed: used=${used.toFixed(2)}GB, total=${total.toFixed(2)}GB`)
-                return { used, total }
-              }
-              log.warn('[DiskInfo] Invalid data structure:', data)
-            } catch (e) {
-              log.error('[DiskInfo] Failed to parse JSON:', e, 'Raw:', result.substring(0, 100))
-            }
-            return null
-          }
-          break
-        }
-          
-        case 'darwin': {
-          // macOS: 使用 df 命令
-          const command = `df -k / | tail -1`
-          fetchResult = () => systemCommandRunner.exec(command, { encoding: outputEncoding })
-          parseResult = (result) => {
-            const parts = result.trim().split(/\s+/)
-            if (parts.length >= 4) {
-              const total = parseInt(parts[1]) / 1024 / 1024 // KB to GB
-              const used = parseInt(parts[2]) / 1024 / 1024
-              return { used, total }
-            }
-            return null
-          }
-          break
-        }
-          
-        case 'linux': {
-          // Linux: 使用 df 命令
-          const command = `df -B1 / | tail -1`
-          fetchResult = () => systemCommandRunner.exec(command, { encoding: outputEncoding })
-          parseResult = (result) => {
-            const parts = result.trim().split(/\s+/)
-            if (parts.length >= 4) {
-              const total = parseInt(parts[1]) / 1024 / 1024 / 1024 // Bytes to GB
-              const used = parseInt(parts[2]) / 1024 / 1024 / 1024
-              return { used, total }
-            }
-            return null
-          }
-          break
-        }
-          
-        default:
-          return this.cachedDiskData || { used: 0, total: 0, percent: 0 }
-      }
-      
-      if (!fetchResult || !parseResult) {
-        return this.cachedDiskData || { used: 0, total: 0, percent: 0 }
-      }
-      
-      const result = await fetchResult()
-      if (!result) {
-        return this.cachedDiskData || { used: 0, total: 0, percent: 0 }
-      }
-      
-      const diskData = parseResult(result)
-      
-      if (diskData) {
-        const used = Number.isFinite(diskData.used) ? Math.round(diskData.used * 100) / 100 : 0
-        const total = Number.isFinite(diskData.total) ? Math.round(diskData.total * 100) / 100 : 0
-        const percent = total > 0 ? Math.round((used / total) * 100) : 0
-        this.cachedDiskData = { used, total, percent }
-        this.lastDiskFetch = now
-        log.info(`[DiskInfo] Updated cache: ${JSON.stringify(this.cachedDiskData)}`)
-        return this.cachedDiskData
-      } else {
-        log.warn('[DiskInfo] parseResult returned null')
-      }
-    } catch (error) {
-      log.error('[DiskInfo] Failed to get disk info:', error)
-    }
-
-    return this.cachedDiskData || { used: 0, total: 0, percent: 0 }
-  }
 
   /**
    * 获取进程列表（跨平台）
@@ -420,17 +304,16 @@ export class NativeResourceMonitor {
    * 内部实现：获取资源使用情况
    */
   private async _getUsageImpl(): Promise<ResourceUsage> {
-    const [cpu, memory, disk, gpu] = await Promise.all([
+    const [cpu, memory, gpu] = await Promise.all([
       Promise.resolve(this.getCpuUsage()),
       Promise.resolve(this.getMemoryInfo()),
-      this.getDiskInfo(),
       this.getGpuInfo()
     ])
 
     return {
       cpu,
       memory,
-      disk,
+      disk: { used: 0, total: 0, percent: 0 },
       gpu,
       timestamp: Date.now()
     }

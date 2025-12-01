@@ -10,7 +10,6 @@ const { Text } = Typography
 interface ResourceUsage {
   cpu: number
   memory: { used: number; total: number; percent: number }
-  disk: { used: number; total: number; percent: number }
   gpu?: { percent: number; memory?: { used: number; total: number } }
   timestamp: number
 }
@@ -27,7 +26,6 @@ interface HistoryPoint {
   time: string
   cpu: number
   memory: number
-  disk: number
   gpu?: number
 }
 
@@ -62,7 +60,6 @@ const ResourceMonitorCard: React.FC = () => {
           time: new Date().toLocaleTimeString('en-US', { hour12: false }),
           cpu: safePercent(usage.cpu),
           memory: safePercent(usage.memory.percent),
-          disk: safePercent(usage.disk.percent),
           gpu: usage.gpu ? safePercent(usage.gpu.percent) : undefined,
         }
         return [...prev, newPoint].slice(-MAX_HISTORY_POINTS)
@@ -129,7 +126,6 @@ const ResourceMonitorCard: React.FC = () => {
             <Space direction="vertical" size={8} style={{ width: '100%' }}>
               <div><div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}><Text type="secondary">CPU</Text><Text strong>{safePercent(currentUsage.cpu)}%</Text></div><Progress percent={safePercent(currentUsage.cpu)} strokeColor={colors.primary} showInfo={false} size="small" /></div>
               <div><div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}><Text type="secondary">内存</Text><Text strong>{safeFixed(currentUsage.memory.used, 1)} / {safeFixed(currentUsage.memory.total, 1)} GB ({safePercent(currentUsage.memory.percent)}%)</Text></div><Progress percent={safePercent(currentUsage.memory.percent)} strokeColor={colors.success} showInfo={false} size="small" /></div>
-              <div><div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}><Text type="secondary">磁盘</Text><Text strong>{safeFixed(currentUsage.disk.used, 0)} / {safeFixed(currentUsage.disk.total, 0)} GB ({safePercent(currentUsage.disk.percent)}%)</Text></div><Progress percent={safePercent(currentUsage.disk.percent)} strokeColor={colors.warning} showInfo={false} size="small" /></div>
               {currentUsage.gpu && <div><div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}><Text type="secondary">GPU</Text><Text strong>{safePercent(currentUsage.gpu.percent)}%</Text></div><Progress percent={safePercent(currentUsage.gpu.percent)} strokeColor={colors.info} showInfo={false} size="small" /></div>}
             </Space>
           </div>
@@ -145,7 +141,6 @@ const ResourceMonitorCard: React.FC = () => {
                 <Legend wrapperStyle={{ fontSize: 12 }} />
                 <Line type="monotone" dataKey="cpu" stroke={colors.primary} strokeWidth={2} dot={false} name="CPU" />
                 <Line type="monotone" dataKey="memory" stroke={colors.success} strokeWidth={2} dot={false} name="内存" />
-                <Line type="monotone" dataKey="disk" stroke={colors.warning} strokeWidth={2} dot={false} name="磁盘" />
                 {currentUsage?.gpu && <Line type="monotone" dataKey="gpu" stroke={colors.info} strokeWidth={2} dot={false} name="GPU" />}
               </LineChart>
             </ResponsiveContainer>
