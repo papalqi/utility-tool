@@ -10,7 +10,6 @@ const { Text } = Typography
 interface ResourceUsage {
   cpu: number
   memory: { used: number; total: number; percent: number }
-  disk: { used: number; total: number; percent: number }
   gpu?: { percent: number; memory?: { used: number; total: number } }
   timestamp: number
 }
