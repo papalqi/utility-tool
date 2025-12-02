@@ -21,6 +21,8 @@ import { appUpdater } from './updater'
 import { registerAllIpcHandlers } from './ipc'
 import { setResourceMonitor } from './ipc/resources.ipc'
 import { cleanupAllScripts } from './ipc/script.ipc'
+import { initializeServices, destroyServices } from './services'
+import { initializeDataLayer, cleanupDataLayer } from './data'
 
 // 初始化日志系统
 setupLogger()
@@ -121,6 +123,22 @@ app.whenReady().then(async () => {
     log.error('Failed to initialize config manager', error)
   }
 
+  // 初始化数据层
+  try {
+    initializeDataLayer()
+    log.info('Data layer initialized')
+  } catch (error) {
+    log.error('Failed to initialize data layer', error)
+  }
+
+  // 初始化服务层
+  try {
+    await initializeServices()
+    log.info('Services initialized')
+  } catch (error) {
+    log.error('Failed to initialize services', error)
+  }
+
   // 注册所有 IPC handlers
   registerAllIpcHandlers({
     getMainWindow: () => mainWindow,
@@ -143,6 +161,8 @@ app.on('window-all-closed', async () => {
   // 清理所有资源
   ptyManager.closeAllSessions()
   cleanupAllScripts()
+  await destroyServices()
+  cleanupDataLayer()
   await destroyWorkerResourceMonitor()
 
   if (process.platform !== 'darwin') {
