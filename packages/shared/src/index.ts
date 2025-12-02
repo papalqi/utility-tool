@@ -3,3 +3,4 @@
  */
 
 export * from './resource'
+export * from './ipc-channels'
