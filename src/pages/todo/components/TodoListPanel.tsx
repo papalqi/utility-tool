@@ -1,5 +1,5 @@
 /* eslint-disable react/prop-types */
-import React, { useCallback, useMemo, useState } from 'react'
+import React, { useCallback, useMemo, useRef, useState } from 'react'
 import {
   Card,
   Tabs,
@@ -31,6 +31,7 @@ import {
   useSensors,
   DragEndEvent,
   DragStartEvent,
+  DragMoveEvent,
   DragOverlay,
   DragOverEvent,
   useDroppable,
@@ -568,6 +569,8 @@ export const TodoListPanel: React.FC<TodoListPanelProps> = (props) => {
   const [dragOverlaySize, setDragOverlaySize] = useState<{ width: number; height: number } | null>(null)
   const [activeDragItem, setActiveDragItem] = useState<TodoItem | null>(null)
   const [dragPointerOffset, setDragPointerOffset] = useState<{ x: number; y: number } | null>(null)
+  const [dragPointerScreenStart, setDragPointerScreenStart] = useState<{ x: number; y: number } | null>(null)
+  const dragPointerOffsetCorrectedRef = useRef(false)
 
   const activeItems = useMemo(() => buildTree(filteredItems, false), [filteredItems])
   const completedItems = useMemo(() => buildTree(filteredItems, true), [filteredItems])
@@ -614,19 +617,36 @@ export const TodoListPanel: React.FC<TodoListPanelProps> = (props) => {
       setActiveDragId(activeId)
       setOverItemId(null)
       setDropHint(null)
+      dragPointerOffsetCorrectedRef.current = false
 
       const rect = event.active.rect.current
       const activeItem = filteredItems.find((item) => item.id === activeId) || null
       setActiveDragItem(activeItem)
 
-      // 优先使用真实卡片元素的尺寸与位置（考虑了缩进与样式），找不到再回退到 dnd-kit 的 rect
-      const cardEl = document.querySelector(`[data-todo-id="${activeId}"]`) as HTMLElement | null
-      const cardRect = cardEl?.getBoundingClientRect()
+      const measuredRect = rect?.initial ?? rect?.translated ?? null
+      let sourceRect = measuredRect
+      let sourceRectSource: 'dom' | 'measured' | 'none' = 'none'
+      const activatorEvent = (event as unknown as { activatorEvent?: MouseEvent | TouchEvent }).activatorEvent
+      if (activatorEvent && 'target' in activatorEvent) {
+        const target = activatorEvent.target as HTMLElement | null
+        const clickedCard = target?.closest(`[data-todo-id="${activeId}"]`) as HTMLElement | null
+        if (clickedCard) {
+          sourceRect = clickedCard.getBoundingClientRect()
+          sourceRectSource = 'dom'
+        }
+      }
+      if (sourceRect === measuredRect && sourceRect) {
+        sourceRectSource = 'measured'
+      }
+      const overlayRect = sourceRect ?? measuredRect
 
-      const width = cardRect?.width ?? rect?.initial?.width ?? rect?.translated?.width
-      const height = cardRect?.height ?? rect?.initial?.height ?? rect?.translated?.height
-      if (width && height) setDragOverlaySize({ width, height })
-      else setDragOverlaySize(null)
+      if (overlayRect?.width && overlayRect?.height) {
+        setDragOverlaySize({ width: overlayRect.width, height: overlayRect.height })
+      } else if (measuredRect?.width && measuredRect?.height) {
+        setDragOverlaySize({ width: measuredRect.width, height: measuredRect.height })
+      } else {
+        setDragOverlaySize(null)
+      }
 
       // 记录指针在卡片内的相对偏移，用于让 DragOverlay 与鼠标保持同一相对位置
       try {
@@ -642,29 +662,105 @@ export const TodoListPanel: React.FC<TodoListPanelProps> = (props) => {
           clientY = (activatorEvent as MouseEvent).clientY
         }
 
-        const baseLeft = cardRect?.left ?? rect?.initial?.left
-        const baseTop = cardRect?.top ?? rect?.initial?.top
-        const baseWidth = cardRect?.width ?? rect?.initial?.width
-        const baseHeight = cardRect?.height ?? rect?.initial?.height
+        setDragPointerScreenStart({ x: clientX, y: clientY })
 
         if (
-          typeof baseLeft === 'number' &&
-          typeof baseTop === 'number' &&
-          typeof baseWidth === 'number' &&
-          typeof baseHeight === 'number'
+          sourceRect &&
+          typeof sourceRect.left === 'number' &&
+          typeof sourceRect.top === 'number' &&
+          typeof sourceRect.width === 'number' &&
+          typeof sourceRect.height === 'number'
         ) {
-          const ox = Math.max(0, Math.min(clientX - baseLeft, baseWidth))
-          const oy = Math.max(0, Math.min(clientY - baseTop, baseHeight))
+          const clamp = (val: number, min: number, max: number) => Math.max(min, Math.min(val, max))
+          const ox = clamp(clientX - sourceRect.left, 0, sourceRect.width)
+          const oy = clamp(clientY - sourceRect.top, 0, sourceRect.height)
           setDragPointerOffset({ x: ox, y: oy })
         } else {
           setDragPointerOffset(null)
         }
+
+        console.log('[TodoListPanel] drag start sourceRect:', {
+          source: sourceRectSource,
+          rect: sourceRect,
+          measuredRect,
+        })
       } catch {
         setDragPointerOffset(null)
       }
 
     },
     [filteredItems]
+  )
+
+  const handleDragMove = useCallback(
+    (event: DragMoveEvent) => {
+      const pointerPos = dragPointerScreenStart
+        ? {
+            x: dragPointerScreenStart.x + event.delta.x,
+            y: dragPointerScreenStart.y + event.delta.y,
+          }
+        : null
+
+      const activeRect =
+        event.active.rect.current?.translated ??
+        event.active.rect.current?.initial ??
+        null
+      const cardPos = activeRect
+        ? {
+            left: activeRect.left,
+            top: activeRect.top,
+            width: activeRect.width,
+            height: activeRect.height,
+          }
+        : null
+
+      const liveCardDom = activeDragId
+        ? document.querySelector(`[data-todo-id="${activeDragId}"]`)
+        : null
+      const liveRect =
+        liveCardDom instanceof HTMLElement
+          ? liveCardDom.getBoundingClientRect()
+          : null
+
+      const overlayPos =
+        pointerPos && dragOverlaySize && dragPointerOffset
+          ? {
+              x: pointerPos.x - dragPointerOffset.x,
+              y: pointerPos.y - dragPointerOffset.y,
+            }
+          : null
+
+      console.log('[TodoListPanel] Drag move:', {
+        pointer: pointerPos,
+        card: cardPos,
+        liveRect,
+        overlay: overlayPos,
+        pointerOffset: dragPointerOffset,
+        dragOverlaySize,
+      })
+
+      if (
+        !dragPointerOffsetCorrectedRef.current &&
+        pointerPos &&
+        liveRect &&
+        typeof liveRect.left === 'number' &&
+        typeof liveRect.top === 'number'
+      ) {
+        const recalculatedOffset = {
+          x: pointerPos.x - liveRect.left,
+          y: pointerPos.y - liveRect.top,
+        }
+        const differs =
+          !dragPointerOffset ||
+          Math.abs(recalculatedOffset.x - dragPointerOffset.x) > 1 ||
+          Math.abs(recalculatedOffset.y - dragPointerOffset.y) > 1
+        if (differs) {
+          setDragPointerOffset(recalculatedOffset)
+        }
+        dragPointerOffsetCorrectedRef.current = true
+      }
+    },
+    [dragPointerScreenStart, dragOverlaySize, dragPointerOffset, activeDragId]
   )
 
   // 处理拖拽覆盖（hover 状态）
@@ -737,6 +833,8 @@ export const TodoListPanel: React.FC<TodoListPanelProps> = (props) => {
       setDragOverlaySize(null)
       setActiveDragItem(null)
       setDragPointerOffset(null)
+      setDragPointerScreenStart(null)
+      dragPointerOffsetCorrectedRef.current = false
 
       if (!onReorderTodos) {
         return
@@ -791,14 +889,13 @@ export const TodoListPanel: React.FC<TodoListPanelProps> = (props) => {
   )
 
   // 通过 Modifier 将 DragOverlay 的参考点从中心调整为指针按下的相对位置
-  const overlayOffsetModifier = React.useCallback<Modifier>(
+  const overlayPointerOffsetModifier = React.useCallback<Modifier>(
     ({ transform }) => {
       if (!dragOverlaySize || !dragPointerOffset) return transform
-      // 默认 Overlay 以中心对齐指针，这里将其改为以指针按下时在卡片内的相对偏移对齐
       return {
         ...transform,
-        x: transform.x - (dragOverlaySize.width / 2 - dragPointerOffset.x),
-        y: transform.y - (dragOverlaySize.height / 2 - dragPointerOffset.y),
+        x: transform.x + (dragPointerOffset.x - dragOverlaySize.width / 2),
+        y: transform.y + (dragPointerOffset.y - dragOverlaySize.height / 2),
       }
     },
     [dragOverlaySize, dragPointerOffset]
@@ -815,6 +912,7 @@ export const TodoListPanel: React.FC<TodoListPanelProps> = (props) => {
         sensors={sensors}
         collisionDetection={closestCenter}
         onDragStart={handleDragStart}
+        onDragMove={handleDragMove}
         onDragEnd={handleDragEnd}
         onDragOver={handleDragOver}
       >
@@ -840,7 +938,7 @@ export const TodoListPanel: React.FC<TodoListPanelProps> = (props) => {
             </SortableContext>
           )}
         </div>
-        <DragOverlay dropAnimation={null} modifiers={[overlayOffsetModifier]}>
+        <DragOverlay dropAnimation={null} modifiers={[overlayPointerOffsetModifier]}>
           {activeDragId ? (
             <div
               style={{

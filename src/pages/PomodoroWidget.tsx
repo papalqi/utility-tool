@@ -11,6 +11,7 @@ import {
   ReloadOutlined,
   FastForwardOutlined,
   SettingOutlined,
+  CheckCircleOutlined,
 } from '@ant-design/icons'
 import { WidgetLayout } from '@/components/widgets'
 import { useConfig, useConfigUpdate } from '@/hooks/useConfig'
@@ -40,9 +41,15 @@ export const PomodoroWidget: React.FC<PomodoroWidgetProps> = ({
 
   // 从全局状态读取
   const { mode, timeRemaining, isRunning, sessionCount, workContent } = pomodoroState
-  
+
   // 用于追踪上一次的状态，检测会话完成
-  const prevStateRef = useRef({ timeRemaining, mode, sessionCount })
+  // 注意：需要带上 workContent，避免在会话结束后被清空导致无法写入 Obsidian
+  const prevStateRef = useRef({
+    timeRemaining,
+    mode,
+    sessionCount,
+    workContent,
+  })
 
   // 配置状态（用于设置对话框）
   const [workDuration, setWorkDuration] = useState(25)
@@ -74,22 +81,22 @@ export const PomodoroWidget: React.FC<PomodoroWidgetProps> = ({
   // 检测会话完成，发送通知和保存工作记录
   useEffect(() => {
     const prev = prevStateRef.current
-    
+
     // 检测工作会话完成（sessionCount 增加且之前是工作模式）
     if (sessionCount > prev.sessionCount && prev.mode === 'work') {
       // 发送通知
       notify({
         title: '🍅 番茄钟完成！',
-        message: `工作时间结束，休息一下吧！${workContent ? `\n${workContent}` : ''}`,
+        message: `工作时间结束，休息一下吧！${prev.workContent ? `\n${prev.workContent}` : ''}`,
         channel: 'system',
       })
-      
+
       // 保存工作记录到 Obsidian
-      if (workContent) {
-        saveWorkRecordToObsidian(workContent, workDuration, sessionCount)
+      if (prev.workContent) {
+        saveWorkRecordToObsidian(prev.workContent, workDuration, sessionCount)
       }
     }
-    
+
     // 检测休息完成（从休息模式切换到工作模式）
     if ((prev.mode === 'short_break' || prev.mode === 'long_break') && mode === 'work') {
       notify({
@@ -98,9 +105,9 @@ export const PomodoroWidget: React.FC<PomodoroWidgetProps> = ({
         channel: 'system',
       })
     }
-    
+
     // 更新 ref
-    prevStateRef.current = { timeRemaining, mode, sessionCount }
+    prevStateRef.current = { timeRemaining, mode, sessionCount, workContent }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionCount, mode, notify, workContent, workDuration])
 
@@ -111,15 +118,23 @@ export const PomodoroWidget: React.FC<PomodoroWidgetProps> = ({
         console.log('Obsidian not enabled, skipping record save')
         return
       }
-      
-      const template = config.global?.obsidian?.content_files?.template || '{year}-W{week}.md'
-      const filePath = obsidianManager.getTemplatePath(template)
+
+      // 优先使用专门的 Pomodoro 模板，其次回退到通用内容模板
+      const pomodoroTemplate =
+        config.global?.obsidian?.content_files?.pomodoro_template ||
+        config.global?.obsidian?.content_files?.template ||
+        '{year}-W{week}.md'
+
+      const filePath = obsidianManager.getTemplatePath(pomodoroTemplate)
       const now = new Date()
       const record = `- 🍅 ${now.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })} [${duration}分钟] ${content} (#${session})`
-      
+
       // 追加到 Pomodoro 段落
       await obsidianManager.appendToSection(filePath, 'Pomodoro', record)
-      console.log('Work record saved to Obsidian:', record)
+      console.log('Work record saved to Obsidian:', {
+        record,
+        filePath,
+      })
     } catch (error) {
       console.error('Failed to save work record:', error)
     }
@@ -178,6 +193,13 @@ export const PomodoroWidget: React.FC<PomodoroWidgetProps> = ({
 
   const handleSkip = () => {
     pomodoroActions.skip(shortBreakDuration, longBreakDuration, longBreakInterval)
+  }
+
+  // 立刻完成当前番茄（用于任务提前完成的场景）
+  // 语义上等价于“本次工作会话视为完成，并立即进入休息/下一阶段”
+  const handleCompleteNow = () => {
+    if (mode !== 'work') return
+    handleSkip()
   }
 
   const handleSaveSettings = async () => {
@@ -297,7 +319,11 @@ export const PomodoroWidget: React.FC<PomodoroWidgetProps> = ({
               onClick={isRunning ? handlePause : handleStart}
             />
             <Button size="small" icon={<ReloadOutlined />} onClick={handleReset} />
-            <Button size="small" icon={<FastForwardOutlined />} onClick={handleSkip} />
+            {mode === 'work' ? (
+              <Button size="small" icon={<CheckCircleOutlined />} onClick={handleCompleteNow} />
+            ) : (
+              <Button size="small" icon={<FastForwardOutlined />} onClick={handleSkip} />
+            )}
             <Button size="small" icon={<SettingOutlined />} onClick={() => setSettingsVisible(true)} />
           </Space>
           <div style={{ marginTop: 8, fontSize: 11, color: colors.textSecondary }}>
@@ -350,9 +376,15 @@ export const PomodoroWidget: React.FC<PomodoroWidgetProps> = ({
           <Button size="large" icon={<ReloadOutlined />} onClick={handleReset}>
             重置
           </Button>
-          <Button size="large" icon={<FastForwardOutlined />} onClick={handleSkip}>
-            跳过
-          </Button>
+          {mode === 'work' ? (
+            <Button size="large" icon={<CheckCircleOutlined />} onClick={handleCompleteNow}>
+              立刻完成
+            </Button>
+          ) : (
+            <Button size="large" icon={<FastForwardOutlined />} onClick={handleSkip}>
+              跳过
+            </Button>
+          )}
         </Space>
 
         {/* 统计信息 */}

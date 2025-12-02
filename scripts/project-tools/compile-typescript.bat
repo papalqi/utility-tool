@@ -152,7 +152,7 @@ echo.
 echo Running: "%UNREAL_CMD%" "%UPROJECT%" -Run=MHEditor -Gen_UE_D_TS
 echo.
 
-::"%UNREAL_CMD%" "%UPROJECT%" -Run=MHEditor -Gen_UE_D_TS
+"%UNREAL_CMD%" "%UPROJECT%" -Run=MHEditor -Gen_UE_D_TS
 if errorlevel 1 (
     echo.
     echo ========================================
