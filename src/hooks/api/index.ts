@@ -5,6 +5,7 @@
 export { useConfig } from './useConfig'
 export { useFileSystem } from './useFileSystem'
 export { useGitHubRepos } from './useGitHubRepos'
+export { useGitHub } from './useGitHub'
 export { useAI } from './useAI'
 export { useADB } from './useADB'
 
@@ -13,6 +14,13 @@ export type {
   GitHubRepo,
   GitHubRepoInfo,
 } from './useGitHubRepos'
+
+export type {
+  GitAction,
+  GitHubTokenVerifyResult,
+  GitCloneResult,
+  GitInfoResult,
+} from './useGitHub'
 
 export type {
   AIConfig,
