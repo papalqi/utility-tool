@@ -12,6 +12,10 @@ interface AppContextType {
   isSettingsOpen: boolean
   setIsSettingsOpen: (isOpen: boolean) => void
 
+  // Log viewer control
+  isLogViewerOpen: boolean
+  setIsLogViewerOpen: (isOpen: boolean) => void
+
   // Pomodoro相关状态
   currentPomodoroTask: TodoItem | null
   setCurrentPomodoroTask: (task: TodoItem | null) => void
@@ -25,6 +29,7 @@ const AppContext = createContext<AppContextType | undefined>(undefined)
 export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [currentPomodoroTask, setCurrentPomodoroTask] = useState<TodoItem | null>(null)
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
+  const [isLogViewerOpen, setIsLogViewerOpen] = useState(false)
 
   // 注意：startPomodoroWithTask 现在需要从外部获取 setActiveWidget
   // 这将在组件层面处理
@@ -38,6 +43,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       value={{
         isSettingsOpen,
         setIsSettingsOpen,
+        isLogViewerOpen,
+        setIsLogViewerOpen,
         currentPomodoroTask,
         setCurrentPomodoroTask,
         startPomodoroWithTask,

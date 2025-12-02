@@ -6,10 +6,11 @@
 
 import React, { useEffect } from 'react'
 import { Form, Input, Button, Alert, Space, Radio, Switch, Typography } from 'antd'
-import { FileTextOutlined, SkinOutlined, ReadOutlined } from '@ant-design/icons'
+import { FileTextOutlined, SkinOutlined, ReadOutlined, BugOutlined } from '@ant-design/icons'
 import { useConfig } from '@/hooks/useConfig'
 import { useTheme } from '@/contexts/ThemeContext'
 import { WidgetSection } from '@/components/widgets'
+import { useAppContext } from '@/context/AppContext'
 
 interface GeneralSettingsProps {
   formRef: React.MutableRefObject<any>
@@ -21,6 +22,7 @@ const { Text } = Typography
 export const GeneralSettings: React.FC<GeneralSettingsProps> = ({ formRef, onChanged }) => {
   const config = useConfig()
   const { mode, setTheme, isAutoSwitch, enableAutoSwitch, disableAutoSwitch } = useTheme()
+  const { isLogViewerOpen, setIsLogViewerOpen } = useAppContext()
   const [form] = Form.useForm()
 
   // Expose form instance to parent
@@ -103,6 +105,17 @@ export const GeneralSettings: React.FC<GeneralSettingsProps> = ({ formRef, onCha
                 浏览
               </Button>
             </Space.Compact>
+          </Form.Item>
+        </WidgetSection>
+
+        <WidgetSection title="日志与诊断" icon={<BugOutlined />} defaultCollapsed={false}>
+          <Form.Item label="实时日志面板" style={{ marginBottom: 0 }}>
+            <Space align="center">
+              <Switch checked={isLogViewerOpen} onChange={setIsLogViewerOpen} />
+              <Text type="secondary">
+                {isLogViewerOpen ? '日志面板已在右侧打开' : '用于查看 widgetLogger 与系统事件输出'}
+              </Text>
+            </Space>
           </Form.Item>
         </WidgetSection>
       </Form>

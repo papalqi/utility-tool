@@ -4,6 +4,7 @@ import Sidebar from './components/Sidebar'
 import WidgetContainer from './components/WidgetContainer'
 import TitleBar from './components/TitleBar'
 import { GlobalSettingsDrawer } from './components/settings/GlobalSettingsDrawer'
+import { LogViewerDrawer } from './components/logging/LogViewerDrawer'
 import { configManager } from './core/ConfigManager'
 import { obsidianManager } from './core/ObsidianManager'
 import { AppProvider } from './context/AppContext'
@@ -93,6 +94,7 @@ function AppContent() {
       <Layout className="app-layout">
         <TitleBar />
         <GlobalSettingsDrawer />
+        <LogViewerDrawer />
         <Layout className="main-content-layout">
           <Sidebar
             activeWidget={activeWidget}

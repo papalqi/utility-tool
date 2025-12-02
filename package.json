@@ -151,12 +151,19 @@
           "arch": [
             "x64"
           ]
+        },
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
         }
       ],
       "publisherName": "papalqi",
-      "artifactName": "PC.Utility.Tool.Setup.${version}.${ext}"
+      "artifactName": "PC.Utility.Tool.${version}.${ext}"
     },
     "nsis": {
+      "artifactName": "PC.Utility.Tool.Setup.${version}.${ext}",
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
