@@ -8,6 +8,7 @@ export { useGitHubRepos } from './useGitHubRepos'
 export { useGitHub } from './useGitHub'
 export { useAI } from './useAI'
 export { useADB } from './useADB'
+export { useADBTool } from './useADBTool'
 
 // 类型导出
 export type {
