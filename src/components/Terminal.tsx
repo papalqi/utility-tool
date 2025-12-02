@@ -309,12 +309,15 @@ export const Terminal = ({
   return (
     <div
       ref={terminalRef}
+      // 需要可聚焦才能正常接收 Ctrl+C / Ctrl+V 按键事件
+      tabIndex={0}
       style={{
         width: '100%',
         height: typeof height === 'number' ? `${height}px` : height,
         backgroundColor: colors.terminalBg,
         padding: '8px',
         borderRadius: '4px',
+        outline: 'none',
       }}
     />
   )
