@@ -1,6 +1,6 @@
 {
   "name": "pc-utility-tool-electron",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "PC Utility Tool - Modern Electron + React + TypeScript rewrite",
   "main": "dist-electron/main/index.js",
   "author": {
