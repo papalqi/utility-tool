@@ -269,7 +269,7 @@ const ADBWidget: React.FC = () => {
       </WidgetSection>
 
       <WidgetSection title="ADB 控制台" icon={<ThunderboltOutlined />}>
-        <Tabs type="card" destroyInactiveTabPane={false} items={tabItems} style={{ width: '100%' }} activeKey={activeTab} onChange={setActiveTab} />
+        <Tabs type="card" destroyOnHidden={false} items={tabItems} style={{ width: '100%' }} activeKey={activeTab} onChange={setActiveTab} />
       </WidgetSection>
     </WidgetLayout>
   )

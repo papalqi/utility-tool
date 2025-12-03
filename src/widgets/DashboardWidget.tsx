@@ -216,7 +216,7 @@ const DashboardWidget: React.FC = () => {
                 transition={{ type: 'spring', stiffness: 300 }}
                 style={{ height: '100%' }}
               >
-                <Card style={cardStyle} bordered={false}>
+                <Card style={cardStyle} variant="borderless">
                   <div style={headerStyle}>
                     <Space>
                       <ProjectOutlined style={{ color: colors.primary }} />
@@ -244,7 +244,7 @@ const DashboardWidget: React.FC = () => {
                 transition={{ type: 'spring', stiffness: 300 }}
                 style={{ height: '100%' }}
               >
-                <Card style={cardStyle} bordered={false}>
+                <Card style={cardStyle} variant="borderless">
                   <div style={headerStyle}>
                     <Space>
                       <RocketOutlined style={{ color: colors.primary }} />
@@ -298,7 +298,7 @@ const DashboardWidget: React.FC = () => {
                 whileHover={{ scale: 1.02 }}
                 transition={{ type: 'spring', stiffness: 300 }}
               >
-                <Card style={cardStyle} bordered={false}>
+                <Card style={cardStyle} variant="borderless">
                   <div style={headerStyle}>
                     <Space>
                       <CalendarOutlined style={{ color: colors.info }} />
@@ -380,7 +380,7 @@ const DashboardWidget: React.FC = () => {
             transition={{ type: 'spring', stiffness: 300 }}
             style={{ height: '100%' }}
           >
-            <Card style={{ ...cardStyle, minHeight: 500 }} bordered={false}>
+            <Card style={{ ...cardStyle, minHeight: 500 }} variant="borderless">
               <div style={headerStyle}>
                 <Space>
                   <CheckSquareOutlined style={{ color: colors.success }} />

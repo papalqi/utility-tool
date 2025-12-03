@@ -1044,7 +1044,7 @@ export const TodoListPanel: React.FC<TodoListPanelProps> = (props) => {
           activeKey={activeTab}
           onChange={setActiveTab}
           items={tabItems}
-          destroyInactiveTabPane={true}
+          destroyOnHidden={true}
           className="full-height-tabs"
           style={{ height: '100%' }}
           animated={false}

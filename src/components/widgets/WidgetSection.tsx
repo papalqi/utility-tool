@@ -72,7 +72,7 @@ export const WidgetSection: React.FC<WidgetSectionProps> = ({
   return (
     <Card
       title={renderTitle()}
-      bordered={bordered}
+      variant={bordered ? 'outlined' : 'borderless'}
       className={className}
       size="small"
       style={{

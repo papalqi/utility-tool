@@ -159,7 +159,7 @@ const QuickLinksCard: React.FC = () => {
     <>
       <Card
         style={cardStyle}
-        bordered={false}
+        variant="borderless"
         title={
           <Space>
             <GlobalOutlined style={{ color: colors.primary }} />

@@ -39,8 +39,14 @@ export const PomodoroWidget: React.FC<PomodoroWidgetProps> = ({
   const { colors } = useTheme()
   const { notify } = useNotifier()
 
-  // 从全局状态读取
-  const { mode, timeRemaining, isRunning, sessionCount, workContent } = pomodoroState
+  // 从全局状态读取，提供默认值防止 undefined
+  const { mode, timeRemaining, isRunning, sessionCount, workContent } = pomodoroState || {
+    mode: 'work' as const,
+    timeRemaining: 25 * 60,
+    isRunning: false,
+    sessionCount: 0,
+    workContent: '',
+  }
 
   // 用于追踪上一次的状态，检测会话完成
   // 注意：需要带上 workContent，避免在会话结束后被清空导致无法写入 Obsidian

@@ -834,7 +834,7 @@ const FileTransferWidget: React.FC = () => {
       {/* Main Content */}
       {!isAuthenticated ? (
         <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%' }}>
-          <Card style={{ width: '100%', maxWidth: 400 }} bordered={false} className="shadow-sm">
+          <Card style={{ width: '100%', maxWidth: 400 }} variant="borderless" className="shadow-sm">
             <Tabs
               centered
               items={[
@@ -925,7 +925,7 @@ const FileTransferWidget: React.FC = () => {
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', height: '100%', gap: 16 }}>
           {/* Storage Stats */}
-          <Card size="small" bordered={false} style={{ background: 'rgba(0,0,0,0.02)' }}>
+          <Card size="small" variant="borderless" style={{ background: 'rgba(0,0,0,0.02)' }}>
             <Row gutter={16} align="middle">
                <Col flex="none">
                  <Statistic 

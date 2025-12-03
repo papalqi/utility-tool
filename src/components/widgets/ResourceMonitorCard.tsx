@@ -120,7 +120,7 @@ const ResourceMonitorCard: React.FC = () => {
 
   return (
     <>
-      <Card style={cardStyle} bordered={false} title={<Space><DatabaseOutlined style={{ color: colors.primary }} /><Text strong>系统资源监控</Text></Space>} extra={<Button type="text" size="small" icon={<ExpandOutlined />} onClick={() => setShowProcesses(true)}>进程排行</Button>}>
+      <Card style={cardStyle} variant="borderless" title={<Space><DatabaseOutlined style={{ color: colors.primary }} /><Text strong>系统资源监控</Text></Space>} extra={<Button type="text" size="small" icon={<ExpandOutlined />} onClick={() => setShowProcesses(true)}>进程排行</Button>}>
         {currentUsage && (
           <div style={{ marginBottom: 16 }}>
             <Space direction="vertical" size={8} style={{ width: '100%' }}>

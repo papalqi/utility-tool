@@ -6,6 +6,8 @@
 /* eslint-disable react/prop-types */
 import { createContext, useContext, useState, ReactNode } from 'react'
 import type { TodoItem } from '../shared/types'
+import { usePomodoro } from '../hooks/usePomodoro'
+import type { PomodoroState, PomodoroActions } from '../hooks/usePomodoro'
 
 interface AppContextType {
   // Settings Drawer Control
@@ -22,6 +24,10 @@ interface AppContextType {
 
   // 启动Pomodoro并切换到Pomodoro页面
   startPomodoroWithTask: (task: TodoItem) => void
+
+  // Pomodoro 状态和操作
+  pomodoroState: PomodoroState
+  pomodoroActions: PomodoroActions
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined)
@@ -30,6 +36,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [currentPomodoroTask, setCurrentPomodoroTask] = useState<TodoItem | null>(null)
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
   const [isLogViewerOpen, setIsLogViewerOpen] = useState(false)
+
+  // Pomodoro 状态管理
+  const { state: pomodoroState, actions: pomodoroActions } = usePomodoro()
 
   // 注意：startPomodoroWithTask 现在需要从外部获取 setActiveWidget
   // 这将在组件层面处理
@@ -48,6 +57,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         currentPomodoroTask,
         setCurrentPomodoroTask,
         startPomodoroWithTask,
+        pomodoroState,
+        pomodoroActions,
       }}
     >
       {children}
