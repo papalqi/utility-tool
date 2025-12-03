@@ -10,7 +10,7 @@ if (process.platform === 'win32') {
   process.env.LANG = 'en_US.UTF-8'
 }
 
-import { app, BrowserWindow } from 'electron'
+import { app, BrowserWindow, globalShortcut } from 'electron'
 import { join } from 'path'
 import log, { setupLogger } from './logger'
 import { configManager } from './config'
@@ -63,6 +63,9 @@ function createWindow(): void {
     mainWindow.loadFile(join(__dirname, '../renderer/index.html'))
   }
 
+  // 注册缩放快捷键
+  setupZoomShortcuts(mainWindow)
+
   // 窗口准备就绪后显示
   mainWindow.once('ready-to-show', () => {
     mainWindow?.show()
@@ -76,6 +79,57 @@ function createWindow(): void {
     appUpdater.stopAutoUpdateCheck()
     mainWindow = null
   })
+}
+
+/**
+ * 设置缩放快捷键
+ * 使用 globalShortcut 注册缩放快捷键，确保在所有平台上都能正常工作
+ */
+function setupZoomShortcuts(window: BrowserWindow): void {
+  // 等待应用就绪后注册快捷键
+  const registerShortcuts = () => {
+    // Ctrl + = (放大) - 某些键盘布局
+    const zoomIn1 = globalShortcut.register('CommandOrControl+=', () => {
+      const currentZoom = window.webContents.getZoomLevel()
+      window.webContents.setZoomLevel(currentZoom + 0.5)
+      log.debug(`Zoom in: ${currentZoom} -> ${currentZoom + 0.5}`)
+    })
+
+    // Ctrl + Shift + = (放大) - 标准键盘布局，+ 需要 Shift
+    const zoomIn2 = globalShortcut.register('CommandOrControl+Shift+=', () => {
+      const currentZoom = window.webContents.getZoomLevel()
+      window.webContents.setZoomLevel(currentZoom + 0.5)
+      log.debug(`Zoom in (Shift): ${currentZoom} -> ${currentZoom + 0.5}`)
+    })
+
+    // Ctrl + - (缩小)
+    const zoomOut = globalShortcut.register('CommandOrControl+-', () => {
+      const currentZoom = window.webContents.getZoomLevel()
+      window.webContents.setZoomLevel(currentZoom - 0.5)
+      log.debug(`Zoom out: ${currentZoom} -> ${currentZoom - 0.5}`)
+    })
+
+    // Ctrl + 0 (重置缩放)
+    const zoomReset = globalShortcut.register('CommandOrControl+0', () => {
+      window.webContents.setZoomLevel(0)
+      log.debug('Zoom reset to 0')
+    })
+
+    if (!zoomIn1) log.warn('Failed to register CommandOrControl+=')
+    if (!zoomIn2) log.warn('Failed to register CommandOrControl+Shift+=')
+    if (!zoomOut) log.warn('Failed to register CommandOrControl+-')
+    if (!zoomReset) log.warn('Failed to register CommandOrControl+0')
+
+    if (zoomIn1 || zoomIn2 || zoomOut || zoomReset) {
+      log.info('Zoom shortcuts registered successfully')
+    }
+  }
+
+  if (app.isReady()) {
+    registerShortcuts()
+  } else {
+    app.whenReady().then(registerShortcuts)
+  }
 }
 
 /**
@@ -164,6 +218,9 @@ app.on('window-all-closed', async () => {
   await destroyServices()
   cleanupDataLayer()
   await destroyWorkerResourceMonitor()
+
+  // 注销所有全局快捷键
+  globalShortcut.unregisterAll()
 
   if (process.platform !== 'darwin') {
     app.quit()
